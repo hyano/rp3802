@@ -706,8 +706,8 @@ void process_ym3802_access(void)
     enum {
         CTRL_SHIFT = GPIO_ADDR_BUS_WIDTH + GPIO_DATA_BUS_WIDTH,
         CS_MASK = 0x01, // CS
-        RD_MASK = 0x02, // CS
-        WR_MASK = 0x04, // CS
+        RD_MASK = 0x02, // RD
+        WR_MASK = 0x04, // WR
         IC_MASK = 0x08, // IC
         CSRD_MASK = CS_MASK | RD_MASK,
         CSWR_MASK = CS_MASK | WR_MASK,

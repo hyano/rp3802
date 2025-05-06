@@ -737,8 +737,10 @@ void process_ym3802_access(void)
         {
             access_read(bus);
         }
-        else if ((ctrl_bits & IC_MASK) == 0)
+
+        if ((curr & IC_MASK) == 0)
         {
+            // Initial clear
             ym3802_reset();
         }
         tight_loop_contents();

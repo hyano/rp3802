@@ -726,16 +726,16 @@ void process_ym3802_access(void)
         const uint32_t prev = (ctrl_bits >> 4) & LOW4_MASK;
 
         // アクティブ状態検出(負論理: 0がアクティブ)
-        const bool cswr_edge = ((prev & CSWR_MASK) == 0) & ((curr & CSWR_MASK) != 0);
         const bool csrd_edge = ((prev & CSRD_MASK) == 0) & ((curr & CSRD_MASK) != 0);
+        const bool cswr_edge = ((prev & CSWR_MASK) == 0) & ((curr & CSWR_MASK) != 0);
 
-        if (cswr_edge)
-        {
-            access_write(bus);
-        }
-        else if (csrd_edge)
+        if (csrd_edge)
         {
             access_read(bus);
+        }
+        else if (cswr_edge)
+        {
+            access_write(bus);
         }
 
         if ((curr & IC_MASK) == 0)

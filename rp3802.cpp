@@ -436,6 +436,7 @@ static void access_write(uint32_t bus)
         break;
     case 0x03:
         // ICR:W: IRQ clear request
+        ym3802_clr_irq(data);
         break;
     case 0x04:
     case 0x05:

@@ -705,8 +705,12 @@ void process_ym3802_access(void)
 {
     enum {
         CTRL_SHIFT = GPIO_ADDR_BUS_WIDTH + GPIO_DATA_BUS_WIDTH,
-        CSWR_MASK = 0x03, // CS(0x01) | WR(0x02)
-        CSRD_MASK = 0x05, // CS(0x01) | RD(0x04)
+        CS_MASK = 0x01, // CS
+        RD_MASK = 0x02, // CS
+        WR_MASK = 0x04, // CS
+        IC_MASK = 0x08, // IC
+        CSRD_MASK = CS_MASK | RD_MASK,
+        CSWR_MASK = CS_MASK | WR_MASK,
         LOW4_MASK = 0x0f,
     };
 
@@ -732,6 +736,10 @@ void process_ym3802_access(void)
         else if (csrd_edge)
         {
             access_read(bus);
+        }
+        else if ((ctrl_bits & IC_MASK) == 0)
+        {
+            ym3802_reset();
         }
         tight_loop_contents();
     }

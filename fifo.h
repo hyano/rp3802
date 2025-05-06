@@ -42,6 +42,15 @@ public:
         return true;
     }
 
+    inline bool peek(T &item)
+    {
+        if (tail == head)
+            return false; // empty
+
+        item = buffer[tail];
+        return true;
+    }
+
     inline bool is_empty() const
     {
         return head == tail;

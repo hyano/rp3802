@@ -333,6 +333,11 @@ static inline void ym3802_update_rx_status(void)
     {
         // RxRDY (0:empty, 1:data ready)
         status |= 0x80;
+
+        // pre-fetch top data in FIFO-Rx and set to RDR
+        uint32_t data;
+        fifo_rx.peek(data);
+        ym3802_reg_update(0x36, data);  // RDR
     }
     ym3802_reg_update(0x34, status);
     spin_unlock(lock, irq_state);
@@ -629,16 +634,18 @@ static void access_read(uint32_t bus)
         case 0x36:
             // RDR:R: FIFO-Rx data
             {
-                // set the latest data in FIFO-Rx
+                // set the top data in FIFO-Rx to RDR
                 if (!fifo_rx.is_empty())
                 {
                     uint32_t data;
                     fifo_rx.pop(data);
-                    ym3802_reg_update(0x36, data);
                     ym3802_update_rx_status();
 
-                    // IRQ-5(Clear): When the FIFO-Rx becomes empty.
-                    ym3802_clr_irq(1 << 5);
+                    if ((reg[0x34] & 0x80) == 0)
+                    {
+                        // IRQ-5(Clear): When the FIFO-Rx becomes empty.
+                        ym3802_clr_irq(1 << 5);
+                    }
                 }
             }
             break;

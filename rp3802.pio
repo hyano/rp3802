@@ -1,0 +1,98 @@
+; Copyright (c) 2025 Hirokuni Yano
+;
+; Released under the MIT license.
+; see https://opensource.org/licenses/MIT
+;
+; pin 0-2       A0-A2
+; pin 3-10      D0-D7
+; pin 11        /CS
+; pin 12        /RD
+; pin 13        /WR
+; pin 14        /IC
+
+
+;
+; DMAと連携して、レジスタ値を高速にGPIOに出力する
+;   IN(初期化): レジスタ値が格納されているアドレス(初期化のみ)
+;   OUT: 転送元のアドレス(DMAがの転送元)
+;   IN: GPIOに出力するレジスタ値
+; 
+.program rp3802_reg_read
+
+.define PUBLIC addr_bus_width   3
+.define PUBLIC data_bus_width   8
+.define PUBLIC bit_width        (addr_bus_width + data_bus_width)
+.define PUBLIC addr_bus_offset  (0)
+.define PUBLIC data_bus_offset  (addr_bus_width)
+
+public entry_point:
+    pull
+    out     x, 32                       ; rom base address
+.wrap_target
+    in      pins, addr_bus_width        ; address offset
+    in      x, (32 - addr_bus_width)    ; rom base address
+    ; auto push -> DMA READ ADDR TRIG
+
+    ; auto pull
+    out     pins, data_bus_width        ; outupt data
+.wrap
+
+
+;
+; /CS, /RDピンを監視して、GPIO(D0-D7)の入出力方向を切り替える
+; 
+.program rp3802_oe
+
+.define PUBLIC addr_bus_width   3
+.define PUBLIC data_bus_width   8
+.define PUBLIC ctrl_bus_width   4
+.define PUBLIC data_bus_offset  (addr_bus_width)
+.define PUBLIC ctrl_bus_offset  (addr_bus_width + data_bus_width)
+.define csrd_bit_width          2
+
+public entry_point:
+.wrap_target
+oe_loop:
+    mov     osr, pins                   ; read ctrl_pins
+    out     x, csrd_bit_width           ; het /CS, /RD
+    jmp     !x, oe_out                  ; /CS = 0 && /RD == 0
+
+    mov     osr, null
+    out     pindirs, data_bus_width     ; High-Z (input)
+    jmp     oe_loop
+
+oe_out:
+    mov     osr, ~null
+    out     pindirs, data_bus_width     ; output enable
+.wrap
+
+
+;
+; 制御信号が変化したらCPUに状態を通知する
+;   OUT: 下記フォーマット
+;           |31-19|   18-15   | 14-11 | 10-03 | 02-00 |
+;           |  0  | prev CTRL | CTRL  | DATA  | ADDR  |
+; 
+.program rp3802_access
+
+
+.define PUBLIC addr_bus_width   3
+.define PUBLIC data_bus_width   8
+.define PUBLIC ctrl_bus_width   4
+.define PUBLIC bit_width        (addr_bus_width + data_bus_width + ctrl_bus_width)
+
+capture:
+    in      osr, bit_width
+    in      y, ctrl_bus_width           ; previous ctrl bus
+    in      null, (32 - (bit_width + ctrl_bus_width))
+    mov     y, x                        ; save current ctrl bus
+    push
+no_rdwr:
+public entry_point:
+.wrap_target
+    mov     osr, pins
+    in      osr, bit_width              ; all bits
+    in      null, (32 - ctrl_bus_width) ; LSB = ctrl bus
+    mov     x, isr                      ; current ctrl bus
+    jmp     x!=y, capture
+.wrap

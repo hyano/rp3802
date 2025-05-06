@@ -410,6 +410,33 @@ static inline void ym3802_gp_timer_load(uint64_t now_us, uint64_t next_us)
     spin_unlock(lock, irq_state);
 }
 
+static void ym3802_reset()
+{
+    memset(reg_dma, 0, sizeof(reg_dma));
+    memset(reg, 0, sizeof(reg));
+
+    // IVR:R: IRQ vector
+    reg_dma[0x00] = 0x00;
+    // RGR:RW: system control
+    reg_dma[0x01] = 0x00;
+    // ISR:R: IRQ status
+    reg_dma[0x02] = 0x00;
+    // DSR:R: FIFO-IRx data
+    ym3802_reg_update(0x16, 0x00);
+    // RSR:R: FIFO-Rx status
+    ym3802_reg_update(0x34, 0x00);
+    // RDR:R: FIFO-Rx data
+    ym3802_reg_update(0x36, 0x00);
+    // TSR:R: FIFO-Tx status
+    ym3802_reg_update(0x54, 0xc0);
+    // FSR:R: FSK status
+    ym3802_reg_update(0x64, 0x00);
+    // SRR:R: Recording counter current value
+    ym3802_reg_update(0x74, 0x00);
+    // EIR:R: External I/O input data
+    ym3802_reg_update(0x96, 0xff);
+}
+
 static void access_write(uint32_t bus)
 {
     const uint32_t data = bus_get_data(bus);
@@ -422,6 +449,12 @@ static void access_write(uint32_t bus)
         break;
     case 0x01:
         // RGR:RW: system control
+        if (data & 0x80)
+        {
+            // Initial clear
+            ym3802_reset();
+        }
+        else
         {
             reg_dma[1] = data;
             uint8_t base = ym3802_reg_group() * 16;
@@ -678,28 +711,7 @@ void process_ym3802_access(void)
     };
 
     // Initialize
-    {
-        // IVR:R: IRQ vector
-        reg_dma[0x00] = 0x00;
-        // RGR:RW: system control
-        reg_dma[0x01] = 0x00;
-        // ISR:R: IRQ status
-        reg_dma[0x02] = 0x00;
-        // DSR:R: FIFO-IRx data
-        ym3802_reg_update(0x16, 0x00);
-        // RSR:R: FIFO-Rx status
-        ym3802_reg_update(0x34, 0x00);
-        // RDR:R: FIFO-Rx data
-        ym3802_reg_update(0x36, 0x00);
-        // TSR:R: FIFO-Tx status
-        ym3802_reg_update(0x54, 0xc0);
-        // FSR:R: FSK status
-        ym3802_reg_update(0x64, 0x00);
-        // SRR:R: Recording counter current value
-        ym3802_reg_update(0x74, 0x00);
-        // EIR:R: External I/O input data
-        ym3802_reg_update(0x96, 0xff);
-    }
+    ym3802_reset();
 
     // Main loop
     for (;;)

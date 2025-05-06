@@ -728,6 +728,8 @@ int main(int argc, char *argv[])
 {
     stdio_init_all();
 
+    printf("Tiny-YM3802 Emulator\n");
+
     // SPIN LOCK
     lock = spin_lock_instance(0);
 
@@ -764,6 +766,8 @@ int main(int argc, char *argv[])
                 // IRQ-6: When the FIFO-Tx becomes empty through the data extraction by the transmitter.
                 ym3802_set_irq(1 << 6);
             }
+
+            printf("Tx: %02x\n", data);
         }
         if (uart_is_readable(UART_ID) && !fifo_rx.is_full())
         {
@@ -776,6 +780,8 @@ int main(int argc, char *argv[])
                 // IRQ-5: When the empty FIFO-Rx is loaded with data.
                 ym3802_set_irq(1 << 5);
             }
+
+            printf("Rx: %02x\n", data);
         }
 
         // Timer handling

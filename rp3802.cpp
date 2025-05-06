@@ -729,13 +729,13 @@ void process_ym3802_access(void)
         const bool csrd_edge = ((prev & CSRD_MASK) == 0) & ((curr & CSRD_MASK) != 0);
         const bool cswr_edge = ((prev & CSWR_MASK) == 0) & ((curr & CSWR_MASK) != 0);
 
-        if (csrd_edge)
-        {
-            access_read(bus);
-        }
-        else if (cswr_edge)
+        if (cswr_edge)
         {
             access_write(bus);
+        }
+        else if (csrd_edge)
+        {
+            access_read(bus);
         }
 
         if ((curr & IC_MASK) == 0)

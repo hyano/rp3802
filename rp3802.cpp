@@ -376,7 +376,7 @@ static inline void ym3802_update_tx_status(void)
 static inline void ym3802_set_irq(uint8_t irq)
 {
     uint32_t irq_state = spin_lock_blocking(lock);
-    reg_dma[0x02] |= (irq & reg[0x06]);
+    reg_dma[0x02] |= (irq & ym3802_reg_value(0x06));
 
     uint8_t status = reg_dma[0x02];
     uint32_t irqno;
@@ -386,7 +386,7 @@ static inline void ym3802_set_irq(uint8_t irq)
         if (status & (1 << irqno))
             break;
     }
-    reg_dma[0x00] = (reg[04] & 0xe0) | (irqno << 1);
+    reg_dma[0x00] = (ym3802_reg_value(0x04) & 0xe0) | (irqno << 1);
 
     if (status != 0)
     {
@@ -412,7 +412,7 @@ static inline void ym3802_clr_irq(uint8_t irq)
 
 static inline uint64_t ym3802_gp_timer_count(void)
 {
-    return ((reg[0x85] & 0x3f) << 8) | reg[0x84];
+    return ((ym3802_reg_value(0x85) & 0x3f) << 8) | ym3802_reg_value(0x84);
 }
 
 static inline void ym3802_gp_timer_load(uint64_t now_us, uint64_t next_us)
@@ -424,7 +424,7 @@ static inline void ym3802_gp_timer_load(uint64_t now_us, uint64_t next_us)
 
 static inline uint64_t ym3802_mc_timer_count(void)
 {
-    return ((reg[0x87] & 0x3f) << 8) | reg[0x86];
+    return ((ym3802_reg_value(0x87) & 0x3f) << 8) | ym3802_reg_value(0x86);
 }
 
 static inline void ym3802_mc_timer_load(uint64_t now_us, uint64_t next_us)
@@ -482,10 +482,10 @@ static void access_write(uint32_t bus)
         {
             reg_dma[1] = data;
             uint8_t base = ym3802_reg_group() * 16;
-            reg_dma[4] = reg[base + 4];
-            reg_dma[5] = reg[base + 5];
-            reg_dma[6] = reg[base + 6];
-            reg_dma[7] = reg[base + 7];
+            reg_dma[4] = ym3802_reg_value(base + 4);
+            reg_dma[5] = ym3802_reg_value(base + 5);
+            reg_dma[6] = ym3802_reg_value(base + 6);
+            reg_dma[7] = ym3802_reg_value(base + 7);
         }
         break;
     case 0x02:
@@ -754,7 +754,7 @@ static void access_read(uint32_t bus)
                     fifo_rx.pop(data);
                     ym3802_update_rx_status();
 
-                    if ((reg[0x34] & 0x80) == 0)
+                    if ((ym3802_reg_value(0x34) & 0x80) == 0)
                     {
                         // IRQ-5(Clear): When the FIFO-Rx becomes empty.
                         ym3802_clr_irq(1 << 5);
@@ -857,7 +857,7 @@ int main(int argc, char *argv[])
     for (;;)
     {
         // UART handling
-        if (!fifo_tx.is_empty() && (reg[0x55] & 0x01) && uart_is_writable(UART_ID))
+        if (!fifo_tx.is_empty() && (ym3802_reg_value(0x55) & 0x01) && uart_is_writable(UART_ID))
         {
             uint32_t data;
             fifo_tx.pop(data);
@@ -871,7 +871,7 @@ int main(int argc, char *argv[])
 
             printf("Tx: %02x\n", data);
         }
-        if (uart_is_readable(UART_ID) && (reg[0x35] & 0x01) && !fifo_rx.is_full())
+        if (uart_is_readable(UART_ID) && (ym3802_reg_value(0x35) & 0x01) && !fifo_rx.is_full())
         {
             uint32_t data = (uint8_t)uart_getc(UART_ID);
             bool from_empty = fifo_rx.is_empty();
@@ -887,7 +887,7 @@ int main(int argc, char *argv[])
         }
 
         // General timer
-        if (reg[0x06] & 0x80) // IER: IRQ-7 enabled
+        if (ym3802_reg_value(0x06) & 0x80) // IER: IRQ-7 enabled
         {
             uint64_t now_us = time_us_64();
             uint64_t count = ym3802_gp_timer_count();
@@ -913,7 +913,7 @@ int main(int argc, char *argv[])
                     timer_mc_next_us = now_us;
                 }
                 ym3802_gp_timer_load(now_us, timer_mc_next_us + count * 8);
-                if (reg[0x05] & 0x08)
+                if (ym3802_reg_value(0x05) & 0x08)
                 {
                     // IRQ-1 (2): MIDI-clock detect
                     ym3802_set_irq(1 << 1);
@@ -926,7 +926,7 @@ int main(int argc, char *argv[])
                     if (click_counter == 0)
                     {
                         click_counter = click_counter_init;
-                        if (!(reg[0x05] & 0x08))
+                        if (!(ym3802_reg_value(0x05) & 0x08))
                         {
                             ym3802_set_irq(1 << 1);
                         }

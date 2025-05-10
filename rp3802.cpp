@@ -66,6 +66,8 @@ uint8_t reg_dma[16] __attribute__ ((aligned (16)));
 
 // timer
 uint64_t timer_gp_next_us = 0;
+uint64_t timer_mc_next_us = 0;
+uint32_t click_counter = 0;
 
 // lock for multicore
 spin_lock_t *lock;
@@ -420,6 +422,18 @@ static inline void ym3802_gp_timer_load(uint64_t now_us, uint64_t next_us)
     spin_unlock(lock, irq_state);
 }
 
+static inline uint64_t ym3802_mc_timer_count(void)
+{
+    return ((reg[0x87] & 0x3f) << 8) | reg[0x86];
+}
+
+static inline void ym3802_mc_timer_load(uint64_t now_us, uint64_t next_us)
+{
+    uint32_t irq_state = spin_lock_blocking(lock);
+    timer_gp_next_us = now_us + next_us;
+    spin_unlock(lock, irq_state);
+}
+
 static void ym3802_reset()
 {
     memset(reg_dma, 0, sizeof(reg_dma));
@@ -636,6 +650,10 @@ static void access_write(uint32_t bus)
         case 0x67:
             // CDR:W: Click counter load value
             ym3802_reg_update(regno, data);
+            if (data & 0x80)
+            {
+                click_counter = data & 0x7f;
+            }
             break;
 
         case 0x74:
@@ -675,6 +693,12 @@ static void access_write(uint32_t bus)
         case 0x87:
             // MTRH:W: MIDI-clock timer value
             ym3802_reg_update(regno, data);
+            if (data & 0x80)
+            {
+                uint64_t now_us = time_us_64();
+                uint64_t count = ym3802_mc_timer_count();
+                ym3802_mc_timer_load(now_us, timer_mc_next_us + count * 8);
+            }
             break;
 
          case 0x94:
@@ -862,7 +886,7 @@ int main(int argc, char *argv[])
             printf("Rx: %02x\n", data);
         }
 
-        // Timer handling
+        // General timer
         if (reg[0x06] & 0x80) // IER: IRQ-7 enabled
         {
             uint64_t now_us = time_us_64();
@@ -876,6 +900,38 @@ int main(int argc, char *argv[])
                 ym3802_gp_timer_load(now_us, timer_gp_next_us + count * 8);
                 // IRQ-7: When the timer reaches a count of zero.
                 ym3802_set_irq(1 << 7);
+            }
+        }
+        // MIDI-clock timer
+        {
+            uint64_t now_us = time_us_64();
+            uint64_t count = ym3802_mc_timer_count();
+            if (count > 1 && now_us >= timer_mc_next_us)
+            {
+                if (timer_mc_next_us == 0)
+                {
+                    timer_mc_next_us = now_us;
+                }
+                ym3802_gp_timer_load(now_us, timer_mc_next_us + count * 8);
+                if (reg[0x05] & 0x08)
+                {
+                    // IRQ-1 (2): MIDI-clock detect
+                    ym3802_set_irq(1 << 1);
+                }
+
+                uint8_t click_counter_init = ym3802_reg_value(0x67) & 0x7f;
+                if (click_counter_init != 0)
+                {
+                    click_counter--;
+                    if (click_counter == 0)
+                    {
+                        click_counter = click_counter_init;
+                        if (!(reg[0x05] & 0x08))
+                        {
+                            ym3802_set_irq(1 << 1);
+                        }
+                    }
+                }
             }
         }
 

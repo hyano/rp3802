@@ -808,12 +808,12 @@ int main(int argc, char *argv[])
         }
 
         // Timer handling
-        if (reg[0x06] & 0x80)
+        if (reg[0x06] & 0x80) // IER: IRQ-7 enabled
         {
             uint64_t now_us = time_us_64();
-            if (now_us >= timer_gp_next_us)
+            uint64_t count = ym3802_gp_timer_count();
+            if (count > 1 && now_us >= timer_gp_next_us)
             {
-                uint64_t count = ym3802_gp_timer_count();
                 if (timer_gp_next_us == 0)
                 {
                     timer_gp_next_us = now_us;

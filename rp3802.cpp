@@ -928,6 +928,7 @@ int main(int argc, char *argv[])
                         click_counter = click_counter_init;
                         if (!(ym3802_reg_value(0x05) & 0x08))
                         {
+                            // IRQ-1 (1): Click Counter
                             ym3802_set_irq(1 << 1);
                         }
                     }

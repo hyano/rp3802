@@ -336,7 +336,7 @@ static inline void ym3802_update_rx_status(void)
 
         // pre-fetch top data in FIFO-Rx and set to RDR
         uint32_t data;
-        fifo_rx.peek(data);
+        fifo_rx.front(data);
         ym3802_reg_update(0x36, data);  // RDR
     }
     ym3802_reg_update(0x34, status);

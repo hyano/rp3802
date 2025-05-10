@@ -42,7 +42,7 @@ public:
         return true;
     }
 
-    inline bool peek(T &item)
+    inline bool front(T &item)
     {
         if (tail == head)
             return false; // empty

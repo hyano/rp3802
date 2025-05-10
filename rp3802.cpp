@@ -827,6 +827,13 @@ void process_ym3802_access(void)
 
 int main(int argc, char *argv[])
 {
+    // vreg_set_voltage(VREG_VOLTAGE_1_10); // VREG_VOLTAGE_DEFAULT
+    // vreg_set_voltage(VREG_VOLTAGE_1_25);
+    // vreg_set_voltage(VREG_VOLTAGE_MAX); // 1_30
+    // set_sys_clock_khz(250000, true);
+    // set_sys_clock_khz(320000, true);
+    // set_sys_clock_khz(400000, true);
+
     stdio_init_all();
 
     printf("Tiny-YM3802 Emulator\n");

@@ -719,7 +719,6 @@ static void access_write(uint32_t bus)
 
 static void access_read(uint32_t bus)
 {
-    const uint32_t data = bus_get_data(bus);
     const uint32_t addr = bus_get_addr(bus);
 
     switch (addr)

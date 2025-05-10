@@ -301,6 +301,16 @@ static inline uint8_t ym3802_reg_value(uint8_t regno)
     return reg[regno];
 }
 
+static inline void ym3802_reg_update_bits(uint8_t regno, uint8_t bit_set, uint8_t bit_clr)
+{
+    uint32_t irq_state = spin_lock_blocking(lock);
+    uint8_t value = ym3802_reg_value(regno);
+    value |= bit_set;
+    value &= ~bit_clr;
+    ym3802_reg_update(regno, value);
+    spin_unlock(lock, irq_state);
+}
+
 static inline uint32_t bus_get_addr(uint32_t bus)
 {
     return bus & ((1 << GPIO_ADDR_BUS_WIDTH) - 1);
@@ -541,7 +551,7 @@ static void access_write(uint32_t bus)
                 if (data & 0x40)
                 {
                     // clear RxOV flag
-                    ym3802_reg_update(0x34, reg[0x34] & 0xbf);
+                    ym3802_reg_update_bits(0x34, 0x00, 0x40);
                 }
                 if (data & 0x10)
                 {
@@ -550,12 +560,12 @@ static void access_write(uint32_t bus)
                 if (data & 0x08)
                 {
                     // clear BRK flag
-                    ym3802_reg_update(0x34, reg[0x34] & 0xf7);
+                    ym3802_reg_update_bits(0x34, 0x00, 0x08);
                 }
                 if (data & 0x04)
                 {
                     // clear RxOL flag
-                    ym3802_reg_update(0x34, reg[0x34] & 0xfb);
+                    ym3802_reg_update_bits(0x34, 0x00, 0x04);
                 }
                 if (data & 0x04)
                 {
@@ -596,7 +606,7 @@ static void access_write(uint32_t bus)
                 if (data & 0x04)
                 {
                     // clear TxIDL flag.
-                    ym3802_reg_update(0x54, reg[0x54] & 0xfb);
+                    ym3802_reg_update_bits(0x54, 0x00, 0x04);
                 }
                 ym3802_update_tx_status();
             }

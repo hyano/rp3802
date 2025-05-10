@@ -778,7 +778,7 @@ int main(int argc, char *argv[])
     for (;;)
     {
         // UART handling
-        if (!fifo_tx.is_empty())
+        if (!fifo_tx.is_empty() && uart_is_writable(UART_ID))
         {
             uint32_t data;
             fifo_tx.pop(data);

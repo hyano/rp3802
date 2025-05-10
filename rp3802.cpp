@@ -532,6 +532,36 @@ static void access_write(uint32_t bus)
         case 0x35:
             // RCR:W: FIFO-Rx control
             ym3802_reg_update(regno, data);
+            {
+                if (data & 0x80)
+                {
+                    // clear FIFO-RX
+                    fifo_rx.reset();
+                }
+                if (data & 0x40)
+                {
+                    // clear RxOV flag
+                    ym3802_reg_update(0x34, reg[0x34] & 0xbf);
+                }
+                if (data & 0x10)
+                {
+                    // enable MIDI clock filter
+                }
+                if (data & 0x08)
+                {
+                    // clear BRK flag
+                    ym3802_reg_update(0x34, reg[0x34] & 0xf7);
+                }
+                if (data & 0x04)
+                {
+                    // clear RxOL flag
+                    ym3802_reg_update(0x34, reg[0x34] & 0xfb);
+                }
+                if (data & 0x04)
+                {
+                    // enable address hunter
+                }
+            }
             break;
         case 0x36:
             // RDR:R: FIFO-Rx data
@@ -548,13 +578,28 @@ static void access_write(uint32_t bus)
 
         case 0x54:
             // TSR:R: FIFO-Tx status
-            {
-                ym3802_update_tx_status();
-            }
             break;
         case 0x55:
             // TCR:W: FIFO-Tx control
             ym3802_reg_update(regno, data);
+            {
+                if (data & 0x80)
+                {
+                    // clear FIFO-TX, FIFO-ITX
+                    fifo_tx.reset();
+                    fifo_itx.reset();
+                }
+                if (data & 0x08)
+                {
+                    // send BREAK
+                }
+                if (data & 0x04)
+                {
+                    // clear TxIDL flag.
+                    ym3802_reg_update(0x54, reg[0x54] & 0xfb);
+                }
+                ym3802_update_tx_status();
+            }
             break;
         case 0x56:
             // TDR:W: FIFO-Tx data
@@ -778,7 +823,7 @@ int main(int argc, char *argv[])
     for (;;)
     {
         // UART handling
-        if (!fifo_tx.is_empty() && uart_is_writable(UART_ID))
+        if (!fifo_tx.is_empty() && (reg[0x55] & 0x01) && uart_is_writable(UART_ID))
         {
             uint32_t data;
             fifo_tx.pop(data);
@@ -792,7 +837,7 @@ int main(int argc, char *argv[])
 
             printf("Tx: %02x\n", data);
         }
-        if (uart_is_readable(UART_ID) && !fifo_rx.is_full())
+        if (uart_is_readable(UART_ID) && (reg[0x35] & 0x01) && !fifo_rx.is_full())
         {
             uint32_t data = (uint8_t)uart_getc(UART_ID);
             bool from_empty = fifo_rx.is_empty();

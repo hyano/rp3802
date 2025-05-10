@@ -369,12 +369,12 @@ static inline void ym3802_set_irq(uint8_t irq)
     uint8_t status = reg_dma[0x02];
     uint32_t irqno;
 
-	for (irqno = 0; irqno < 8; irqno++)
-	{
-		if (status & (1 << irqno))
-			break;
-	}
-	reg_dma[0x00] = (reg[04] & 0xe0) | (irqno << 1);
+    for (irqno = 0; irqno < 8; irqno++)
+    {
+        if (status & (1 << irqno))
+            break;
+    }
+    reg_dma[0x00] = (reg[04] & 0xe0) | (irqno << 1);
 
     if (status != 0)
     {

@@ -8,6 +8,7 @@
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "hardware/dma.h"
+#include "hardware/vreg.h"
 #include "hardware/uart.h"
 #include "pico/multicore.h"
 #include "pico/sync.h"
@@ -23,8 +24,8 @@
 
 #include "rp3802.pio.h"
 
-#define DEBUG_VERBOSE               (1)
-#define DEBUG_HEARTBEAT             (1)
+//#define DEBUG_VERBOSE               (1)
+//#define DEBUG_HEARTBEAT             (1)
 #define DEBUG_HEARTBEAT_INTERVAL    (10 * 1000 * 1000)
 
 #ifdef DEBUG_VERBOSE
@@ -56,7 +57,10 @@
 #define GPIO_DATA_BUS           (GPIO_ADDR_BUS + GPIO_ADDR_BUS_WIDTH)
 #define GPIO_CTRL_BUS           (GPIO_DATA_BUS + GPIO_DATA_BUS_WIDTH)
 #define GPIO_IRQ                (GPIO_CTRL_BUS + GPIO_CTRL_BUS_WIDTH)
-#define GPIO_ALL_MASK           ((1<<GPIO_BIT_WIDTH) - 1)
+#define GPIO_DEBUG              (28)
+
+#define GPIO_ALL_MASK           (((1<<GPIO_BIT_WIDTH) - 1) | (1 << GPIO_DEBUG))
+
 
 #define UART_ID                 (uart0)
 #define BAUD_RATE               (312500)
@@ -817,6 +821,13 @@ void process_ym3802_access(void)
         const bool csrd_edge = ((prev & CSRD_MASK) == 0) & ((curr & CSRD_MASK) != 0);
         const bool cswr_edge = ((prev & CSWR_MASK) == 0) & ((curr & CSWR_MASK) != 0);
 
+        {
+            int value = ((curr & CS_MASK) != 0);
+            gpio_put(GPIO_DEBUG, value);
+            gpio_put(GPIO_DEBUG, !value);
+            gpio_put(GPIO_DEBUG, value);
+        }
+
         if (((prev ^ curr) & CS_MASK) || ((curr & CS_MASK) == 0) || ((curr & IC_MASK) == 0))
         {
             DEBUG_PRINTF("A: %01x D: %02x IWRC: %04b -> %04b\n", bus & 0x7, (bus >> GPIO_ADDR_BUS_WIDTH) & 0xff, prev, curr);
@@ -844,8 +855,8 @@ int main(int argc, char *argv[])
 {
     // vreg_set_voltage(VREG_VOLTAGE_1_10); // VREG_VOLTAGE_DEFAULT
     // vreg_set_voltage(VREG_VOLTAGE_1_25);
-    // vreg_set_voltage(VREG_VOLTAGE_MAX); // 1_30
-    // set_sys_clock_khz(250000, true);
+    vreg_set_voltage(VREG_VOLTAGE_MAX); // 1_30
+    set_sys_clock_khz(250000, true);
     // set_sys_clock_khz(320000, true);
     // set_sys_clock_khz(400000, true);
 
@@ -861,6 +872,9 @@ int main(int argc, char *argv[])
     // IRQ line
     gpio_put(GPIO_IRQ, 1);
     gpio_set_dir(GPIO_IRQ, true);
+    // DEBUG
+    gpio_put(GPIO_DEBUG, 0);
+    gpio_set_dir(GPIO_DEBUG, true);
 
     // UART
     uart_init(UART_ID, BAUD_RATE);

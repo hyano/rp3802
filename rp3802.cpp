@@ -817,7 +817,7 @@ void process_ym3802_access(void)
         const bool csrd_edge = ((prev & CSRD_MASK) == 0) & ((curr & CSRD_MASK) != 0);
         const bool cswr_edge = ((prev & CSWR_MASK) == 0) & ((curr & CSWR_MASK) != 0);
 
-        DEBUG_PRINTF("BUS: %08x\n", bus);
+        DEBUG_PRINTF("DATA: %02x IWRC: %04b -> %04b\n", bus & 0xff, prev, curr);
 
         if (cswr_edge)
         {

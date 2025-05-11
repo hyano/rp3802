@@ -817,7 +817,10 @@ void process_ym3802_access(void)
         const bool csrd_edge = ((prev & CSRD_MASK) == 0) & ((curr & CSRD_MASK) != 0);
         const bool cswr_edge = ((prev & CSWR_MASK) == 0) & ((curr & CSWR_MASK) != 0);
 
-        DEBUG_PRINTF("DATA: %02x IWRC: %04b -> %04b\n", bus & 0xff, prev, curr);
+        if (((prev ^ curr) & CS_MASK) || ((curr & CS_MASK) == 0) || ((curr & IC_MASK) == 0))
+        {
+            DEBUG_PRINTF("A: %01x D: %02x IWRC: %04b -> %04b\n", bus & 0x7, (bus >> GPIO_ADDR_BUS_WIDTH) & 0xff, prev, curr);
+        }
 
         if (cswr_edge)
         {

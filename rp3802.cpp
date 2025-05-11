@@ -23,6 +23,14 @@
 
 #include "rp3802.pio.h"
 
+#define DEBUG_VERBOSE   (1)
+
+#ifdef DEBUG_VERBOSE
+    #define DEBUG_PRINTF(fmt, ...) printf(fmt, __VA_ARGS__)
+#else
+    #define DEBUG_PRINTF(fmt, ...) ((void)0)
+#endif
+
 //
 // GPIO assignment
 //
@@ -804,6 +812,8 @@ void process_ym3802_access(void)
         const bool csrd_edge = ((prev & CSRD_MASK) == 0) & ((curr & CSRD_MASK) != 0);
         const bool cswr_edge = ((prev & CSWR_MASK) == 0) & ((curr & CSWR_MASK) != 0);
 
+        DEBUG_PRINTF("BUS: %08x\n", bus);
+
         if (cswr_edge)
         {
             access_write(bus);
@@ -882,7 +892,7 @@ int main(int argc, char *argv[])
                 ym3802_set_irq(1 << 6);
             }
 
-            printf("Tx: %02x\n", data);
+            DEBUG_PRINTF("Tx: %02x\n", data);
         }
         // UART RX
         if (uart_is_readable(UART_ID) && (ym3802_reg_value(0x35) & 0x01) && !fifo_rx.is_full())
@@ -897,7 +907,7 @@ int main(int argc, char *argv[])
                 ym3802_set_irq(1 << 5);
             }
 
-            printf("Rx: %02x\n", data);
+            DEBUG_PRINTF("Rx: %02x\n", data);
         }
 
         // Timer handling

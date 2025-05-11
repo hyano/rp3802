@@ -792,9 +792,6 @@ void process_ym3802_access(void)
         LOW4_MASK = 0x0f,
     };
 
-    // Initialize
-    ym3802_reset();
-
     // Main loop
     for (;;)
     {
@@ -856,13 +853,16 @@ int main(int argc, char *argv[])
     // PIO
     rp3802_init(pio0, GPIO_BASE, reg_dma);
 
+    // Initialize YM3802 registers
+    ym3802_reset();
+
     // Register accessing routine
     multicore_launch_core1(process_ym3802_access);
 
     // Main loop
     for (;;)
     {
-        // UART handling
+        // UART TX
         if (!fifo_tx.is_empty() && (ym3802_reg_value(0x55) & 0x01) && uart_is_writable(UART_ID))
         {
             uint32_t data;
@@ -877,6 +877,7 @@ int main(int argc, char *argv[])
 
             printf("Tx: %02x\n", data);
         }
+        // UART RX
         if (uart_is_readable(UART_ID) && (ym3802_reg_value(0x35) & 0x01) && !fifo_rx.is_full())
         {
             uint32_t data = (uint8_t)uart_getc(UART_ID);

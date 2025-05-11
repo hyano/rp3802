@@ -23,12 +23,14 @@
 
 #include "rp3802.pio.h"
 
-#define DEBUG_VERBOSE   (1)
+#define DEBUG_VERBOSE               (1)
+#define DEBUG_HEARTBEAT             (1)
+#define DEBUG_HEARTBEAT_INTERVAL    (10 * 1000 * 1000)
 
 #ifdef DEBUG_VERBOSE
-    #define DEBUG_PRINTF(fmt, ...) printf(fmt, __VA_ARGS__)
+    #define DEBUG_PRINTF(...) printf(__VA_ARGS__)
 #else
-    #define DEBUG_PRINTF(fmt, ...) ((void)0)
+    #define DEBUG_PRINTF(...) ((void)0)
 #endif
 
 //
@@ -79,6 +81,9 @@ uint32_t click_counter = 0;
 
 // lock for multicore
 spin_lock_t *lock;
+
+// heartbeat
+uint64_t heartbeat_next_us = 0;
 
 // YM3802 bus access log (FIFO)
 #define RP3802_ACCESS_BUFFER_SHIFT (6)
@@ -871,6 +876,9 @@ int main(int argc, char *argv[])
         const uint64_t now_us = time_us_64();
         timer_gp_next_us = now_us;
         timer_mc_next_us = now_us;
+
+        // heartbeat
+        heartbeat_next_us = now_us + DEBUG_HEARTBEAT_INTERVAL;
     }
 
     // Register accessing routine
@@ -950,6 +958,13 @@ int main(int argc, char *argv[])
                 }
             }
         }
+#ifdef DEBUG_HEARTBEAT
+        if (now_us >= heartbeat_next_us)
+        {
+            heartbeat_next_us += DEBUG_HEARTBEAT_INTERVAL;
+            DEBUG_PRINTF("HEARTBEAT\n");
+        }
+#endif
 
         tight_loop_contents();
     }

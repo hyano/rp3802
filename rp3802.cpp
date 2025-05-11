@@ -856,6 +856,13 @@ int main(int argc, char *argv[])
     // Initialize YM3802 registers
     ym3802_reset();
 
+    // Initialize Timer
+    {
+        const uint64_t now_us = time_us_64();
+        timer_gp_next_us = now_us;
+        timer_mc_next_us = now_us;
+    }
+
     // Register accessing routine
     multicore_launch_core1(process_ym3802_access);
 
@@ -893,17 +900,13 @@ int main(int argc, char *argv[])
             printf("Rx: %02x\n", data);
         }
 
+        // Timer handling
+        const uint64_t now_us = time_us_64();
         // General timer
-        if (ym3802_reg_value(0x06) & 0x80) // IER: IRQ-7 enabled
         {
-            uint64_t now_us = time_us_64();
             uint64_t count = ym3802_gp_timer_count();
             if (count > 1 && now_us >= timer_gp_next_us)
             {
-                if (timer_gp_next_us == 0)
-                {
-                    timer_gp_next_us = now_us;
-                }
                 ym3802_gp_timer_load(now_us, timer_gp_next_us + count * 8);
                 // IRQ-7: When the timer reaches a count of zero.
                 ym3802_set_irq(1 << 7);
@@ -911,15 +914,10 @@ int main(int argc, char *argv[])
         }
         // MIDI-clock timer
         {
-            uint64_t now_us = time_us_64();
             uint64_t count = ym3802_mc_timer_count();
             if (count > 1 && now_us >= timer_mc_next_us)
             {
-                if (timer_mc_next_us == 0)
-                {
-                    timer_mc_next_us = now_us;
-                }
-                ym3802_gp_timer_load(now_us, timer_mc_next_us + count * 8);
+                ym3802_mc_timer_load(now_us, timer_mc_next_us + count * 8);
                 if (ym3802_reg_value(0x05) & 0x08)
                 {
                     // IRQ-1 (2): MIDI-clock detect

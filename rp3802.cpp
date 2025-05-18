@@ -37,22 +37,22 @@
 //
 // GPIO assignment
 //
-//  GPIO 0-2        A0-A2
-//  GPIO 3-10       D0-D7
-//  GPIO 11         /CS
-//  GPIO 12         /RD
-//  GPIO 13         /WR
-//  GPIO 14         /IC
-//  GPIO 15         /IRQ
-//  GPIO 16         UART TX
-//  GPIO 17         UART RX
+//  GPIO 0          TxD (UART TX)
+//  GPIO 1          RxD (UART RX)
+//  GPIO 2-4        A0-A2
+//  GPIO 5-12       D0-D7
+//  GPIO 13         /CS
+//  GPIO 14         /RD
+//  GPIO 15         /WR
+//  GPIO 16         /IC
+//  GPIO 17         /IRQ
 
 #define GPIO_ADDR_BUS_WIDTH     (3)
 #define GPIO_DATA_BUS_WIDTH     (8)
 #define GPIO_CTRL_BUS_WIDTH     (4)
 #define GPIO_BIT_WIDTH          (GPIO_ADDR_BUS_WIDTH + GPIO_DATA_BUS_WIDTH + GPIO_CTRL_BUS_WIDTH)
 
-#define GPIO_BASE               (0)
+#define GPIO_BASE               (2)
 #define GPIO_ADDR_BUS           (GPIO_BASE)
 #define GPIO_DATA_BUS           (GPIO_ADDR_BUS + GPIO_ADDR_BUS_WIDTH)
 #define GPIO_CTRL_BUS           (GPIO_DATA_BUS + GPIO_DATA_BUS_WIDTH)
@@ -64,8 +64,8 @@
 
 #define UART_ID                 (uart0)
 #define BAUD_RATE               (312500)
-#define UART_TX_PIN             (16)
-#define UART_RX_PIN             (17)
+#define UART_TX_PIN             (0)
+#define UART_RX_PIN             (1)
 
 
 FIFO<uint32_t, 16> fifo_tx;

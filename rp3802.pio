@@ -54,7 +54,7 @@ public entry_point:
 .wrap_target
 oe_loop:
     mov     osr, pins                   ; read ctrl_pins
-    out     x, csrd_bit_width           ; het /CS, /RD
+    out     x, csrd_bit_width           ; get /CS, /RD
     jmp     !x, oe_out                  ; /CS = 0 && /RD == 0
 
     mov     osr, null

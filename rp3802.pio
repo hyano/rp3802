@@ -89,8 +89,8 @@ capture:
     in      y, ctrl_bus_width           ; ISR = all bits + previous ctrl bus (Y)
     in      null, (32 - (bit_width + ctrl_bus_width))
                                         ; ISR padding
-    mov     y, x                        ; Y = save current ctrl bus
     push                                ; send ISR to Host CPU
+    mov     y, x                        ; Y = save current ctrl bus
 no_rdwr:
 start:
 .wrap_target

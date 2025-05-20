@@ -27,10 +27,10 @@
 
 public entry_point:
     pull
-    out     x, 32                       ; rom base address
+    out     x, 32                       ; register base address
 .wrap_target
     in      pins, addr_bus_width        ; address offset
-    in      x, (32 - addr_bus_width)    ; rom base address
+    in      x, (32 - addr_bus_width)    ; register base address
     ; auto push -> DMA READ ADDR TRIG
 
     ; auto pull

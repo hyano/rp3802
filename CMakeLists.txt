@@ -50,7 +50,7 @@ pico_set_program_name(rp3802 "rp3802")
 pico_set_program_version(rp3802 "0.1")
 
 # no_flash means the target is to run from RAM
-pico_set_binary_type(rp3802 no_flash)
+# pico_set_binary_type(rp3802 no_flash)
 
 # Generate PIO header
 pico_generate_pio_header(rp3802 ${CMAKE_CURRENT_SOURCE_DIR}/rp3802.pio)

@@ -94,8 +94,9 @@ capture:
 no_rdwr:
 start:
 .wrap_target
-    mov     osr, pins                   ; OSR = all bits
-    mov     isr, osr                    ; ISR = all bits (OSR)
+    in      pins, bit_width
+    in      null, (32 - bit_width)
+    mov     osr, isr                    ; save bus condition to osr
     in      null, (bit_width - ctrl_bus_width)
                                         ; ISR = ctrl bus
     mov     x, isr                      ; X = save current ctrl bus

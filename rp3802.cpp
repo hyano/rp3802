@@ -24,9 +24,10 @@
 
 #include "rp3802.pio.h"
 
-//#define DEBUG_VERBOSE               (1)
+#define DEBUG_VERBOSE               (1)
 //#define DEBUG_HEARTBEAT             (1)
 #define DEBUG_HEARTBEAT_INTERVAL    (10 * 1000 * 1000)
+//#define DEBUG_PULL_UP               (1)
 
 #ifdef DEBUG_VERBOSE
     #define DEBUG_PRINTF(...) printf(__VA_ARGS__)
@@ -59,7 +60,7 @@
 #define GPIO_IRQ                (GPIO_CTRL_BUS + GPIO_CTRL_BUS_WIDTH)
 #define GPIO_DEBUG              (28)
 
-#define GPIO_ALL_MASK           (((1<<GPIO_BIT_WIDTH) - 1) | (1 << GPIO_DEBUG))
+#define GPIO_ALL_MASK           (((1 << GPIO_BIT_WIDTH) - 1) | (1 << GPIO_DEBUG))
 
 
 #define UART_ID                 (uart0)
@@ -90,7 +91,7 @@ spin_lock_t *lock;
 uint64_t heartbeat_next_us = 0;
 
 // YM3802 bus access log (FIFO)
-#define RP3802_ACCESS_BUFFER_SHIFT (6)
+#define RP3802_ACCESS_BUFFER_SHIFT (12)
 #define RP3802_ACCESS_BUFFER_COUNT (1 << RP3802_ACCESS_BUFFER_SHIFT)
 static uint32_t rp3802_access_buffer[RP3802_ACCESS_BUFFER_COUNT] __attribute__ ((aligned (sizeof(uint32_t) * RP3802_ACCESS_BUFFER_COUNT)));
 static uint32_t rp3802_access_buffer_count = RP3802_ACCESS_BUFFER_COUNT;
@@ -312,6 +313,7 @@ static inline void ym3802_reg_update(uint8_t regno, uint8_t data)
         reg_dma[regno & 0x07] = reg[regno];
     }
     reg[regno] = data;
+    DEBUG_PRINTF("  W: %02x %02x\n", regno, data);
 }
 
 static inline uint8_t ym3802_reg_value(uint8_t regno)
@@ -453,13 +455,12 @@ static inline void ym3802_mc_timer_load(uint64_t now_us, uint64_t next_us)
 
 static void ym3802_reset()
 {
-    memset(reg_dma, 0, sizeof(reg_dma));
     memset(reg, 0, sizeof(reg));
 
     // IVR:R: IRQ vector
     reg_dma[0x00] = 0x00;
     // RGR:RW: system control
-    reg_dma[0x01] = 0x00;
+    //reg_dma[0x01] = 0x00;
     // ISR:R: IRQ status
     reg_dma[0x02] = 0x00;
     // DSR:R: FIFO-IRx data
@@ -476,6 +477,13 @@ static void ym3802_reset()
     ym3802_reg_update(0x74, 0x00);
     // EIR:R: External I/O input data
     ym3802_reg_update(0x96, 0xff);
+}
+
+static void ym3802_poweron()
+{
+    // RGR:RW: system control
+    reg_dma[0x01] = 0x00;
+    ym3802_reset();
 }
 
 static void access_write(uint32_t bus)
@@ -495,7 +503,7 @@ static void access_write(uint32_t bus)
             // Initial clear
             ym3802_reset();
         }
-        else
+
         {
             reg_dma[1] = data;
             uint8_t base = ym3802_reg_group() * 16;
@@ -818,19 +826,14 @@ void process_ym3802_access(void)
         const uint32_t prev = (ctrl_bits >> 4) & LOW4_MASK;
 
         // アクティブ状態検出(負論理: 0がアクティブ)
-        const bool csrd_edge = ((prev & CSRD_MASK) == 0) & ((curr & CSRD_MASK) != 0);
-        const bool cswr_edge = ((prev & CSWR_MASK) == 0) & ((curr & CSWR_MASK) != 0);
+        const bool csrd_edge = ((prev & CSRD_MASK) == 0) && ((curr & CSRD_MASK) != 0);
+        const bool cswr_edge = ((prev & CSWR_MASK) == 0) && ((curr & CSWR_MASK) != 0);
 
         {
             int value = ((curr & CS_MASK) != 0);
             gpio_put(GPIO_DEBUG, value);
             gpio_put(GPIO_DEBUG, !value);
             gpio_put(GPIO_DEBUG, value);
-        }
-
-        if (((prev ^ curr) & CS_MASK) || ((curr & CS_MASK) == 0) || ((curr & IC_MASK) == 0))
-        {
-            DEBUG_PRINTF("A: %01x D: %02x IWRC: %04b -> %04b\n", bus & 0x7, (bus >> GPIO_ADDR_BUS_WIDTH) & 0xff, prev, curr);
         }
 
         if (cswr_edge)
@@ -840,6 +843,14 @@ void process_ym3802_access(void)
         else if (csrd_edge)
         {
             access_read(bus);
+        }
+
+        //if (((prev ^ curr) & CS_MASK) || cswr_edge || csrd_edge)
+        if (cswr_edge || csrd_edge)
+        {
+            DEBUG_PRINTF("%08x A: %01x D: %02x IWRC: %04b -> %04b %s%s\n",
+                bus, bus & 0x7, (bus >> GPIO_ADDR_BUS_WIDTH) & 0xff, prev, curr,
+                cswr_edge ? "W" : "-", csrd_edge ? "R" : "-");
         }
 
         if ((curr & IC_MASK) == 0)
@@ -862,6 +873,7 @@ int main(int argc, char *argv[])
 
     stdio_init_all();
 
+    sleep_ms(2500);
     printf("Tiny-YM3802 Emulator\n");
 
     // SPIN LOCK
@@ -875,6 +887,12 @@ int main(int argc, char *argv[])
     // DEBUG
     gpio_put(GPIO_DEBUG, 0);
     gpio_set_dir(GPIO_DEBUG, true);
+#ifdef DEBUG_PULL_UP
+    for (int i = 0; i < GPIO_BIT_WIDTH; i++)
+    {
+        gpio_pull_up(GPIO_BASE + i);
+    }
+#endif
 
     // UART
     uart_init(UART_ID, BAUD_RATE);
@@ -882,11 +900,13 @@ int main(int argc, char *argv[])
     gpio_set_function(UART_TX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_TX_PIN));
     gpio_set_function(UART_RX_PIN, UART_FUNCSEL_NUM(UART_ID, UART_RX_PIN));
 
+    gpio_pull_up(UART_TX_PIN);
+
     // PIO
     rp3802_init(pio0, GPIO_BASE, reg_dma);
 
     // Initialize YM3802 registers
-    ym3802_reset();
+    ym3802_poweron();
 
     // Initialize Timer
     {

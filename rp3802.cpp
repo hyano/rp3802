@@ -23,11 +23,14 @@
 #include "fifo.h"
 
 #include "rp3802.pio.h"
+#include "csrdwr.pio.h"
 
-#define DEBUG_VERBOSE               (1)
+//#define DEBUG_VERBOSE               (1)
+//#define DEBUG_ACCESS                (1)
 //#define DEBUG_HEARTBEAT             (1)
 #define DEBUG_HEARTBEAT_INTERVAL    (10 * 1000 * 1000)
 //#define DEBUG_PULL_UP               (1)
+#define DEBUG_BOOT_WAIT_MS          (1500)
 
 #ifdef DEBUG_VERBOSE
     #define DEBUG_PRINTF(...) printf(__VA_ARGS__)
@@ -42,15 +45,21 @@
 //  GPIO 1          RxD (UART RX)
 //  GPIO 2-4        A0-A2
 //  GPIO 5-12       D0-D7
-//  GPIO 13         /CS
-//  GPIO 14         /RD
-//  GPIO 15         /WR
-//  GPIO 16         /IC
-//  GPIO 17         /IRQ
+//  GPIO 13         /CS | /RD
+//  GPIO 14         /CS | /WR
+//  GPIO 15         /IC
+//  GPIO 16         /IRQ
+//  GPIO 17         /RD
+//  GPIO 18         /CS
+//  GPIO 19         /WR
+//  GPIO 20         /CSRD --> GPIO 13
+//  GPIO 21         /CSWR --> GPIO 14
+//  GPIO 28         DEBUG
+//
 
 #define GPIO_ADDR_BUS_WIDTH     (3)
 #define GPIO_DATA_BUS_WIDTH     (8)
-#define GPIO_CTRL_BUS_WIDTH     (4)
+#define GPIO_CTRL_BUS_WIDTH     (3)
 #define GPIO_BIT_WIDTH          (GPIO_ADDR_BUS_WIDTH + GPIO_DATA_BUS_WIDTH + GPIO_CTRL_BUS_WIDTH)
 
 #define GPIO_BASE               (2)
@@ -58,9 +67,14 @@
 #define GPIO_DATA_BUS           (GPIO_ADDR_BUS + GPIO_ADDR_BUS_WIDTH)
 #define GPIO_CTRL_BUS           (GPIO_DATA_BUS + GPIO_DATA_BUS_WIDTH)
 #define GPIO_IRQ                (GPIO_CTRL_BUS + GPIO_CTRL_BUS_WIDTH)
+#define GPIO_RD                 (17)
+#define GPIO_CS                 (18)
+#define GPIO_WR                 (19)
+#define GPIO_CSRD               (20)
+#define GPIO_CSWR               (21)
 #define GPIO_DEBUG              (28)
 
-#define GPIO_ALL_MASK           (((1 << GPIO_BIT_WIDTH) - 1) | (1 << GPIO_DEBUG))
+#define GPIO_ALL_MASK           (((1 << 22) - 1) | (1 << GPIO_DEBUG))
 
 
 #define UART_ID                 (uart0)
@@ -264,7 +278,35 @@ static void rp3802_init(PIO pio, uint pin, uint8_t *reg_ptr)
     rp3802_access_init(pio, sm_rp3802_access, offset_rp3802_access, pin);
 }
 
+static void csrdwr_sm_init(PIO pio, uint sm, uint offset, uint pin_in, uint pin_out)
+{
+    pio_gpio_init(pio, pin_in + 0);
+    pio_gpio_init(pio, pin_in + 1);
+    pio_gpio_init(pio, pin_out);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_in, 2, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_out, 1, true);
+    pio_sm_config c = csrdwr_program_get_default_config(offset);
+    sm_config_set_in_pins(&c, pin_in);
+    sm_config_set_in_shift(&c, true, false, 32);
+    sm_config_set_sideset_pins(&c, pin_out);
+    sm_config_set_clkdiv_int_frac(&c, 1, 0);
+    pio_sm_init(pio, sm, offset + csrdwr_offset_entry_point, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
 
+static void csrdwr_init(PIO pio)
+{
+    // common pio program
+    uint offset_csrdwr = pio_add_program(pio, &csrdwr_program);
+
+    // /CS | /RD
+    uint sm_csrd = pio_claim_unused_sm(pio, true);
+    csrdwr_sm_init(pio, sm_csrd, offset_csrdwr, GPIO_RD, GPIO_CSRD);
+
+    // /CS | /WR
+    uint sm_cswr = pio_claim_unused_sm(pio, true);
+    csrdwr_sm_init(pio, sm_cswr, offset_csrdwr, GPIO_CS, GPIO_CSWR);
+}
 
 
 static inline uint8_t ym3802_reg_group(void)
@@ -310,7 +352,7 @@ static inline void ym3802_reg_update(uint8_t regno, uint8_t data)
     uint8_t group_cur = ym3802_reg_group();
     if (group == group_cur)
     {
-        reg_dma[regno & 0x07] = reg[regno];
+        reg_dma[regno & 0x07] = data;
     }
     reg[regno] = data;
     DEBUG_PRINTF("  W: %02x %02x\n", regno, data);
@@ -383,7 +425,7 @@ static inline void ym3802_update_tx_status(void)
         // TxRDY (0:FIFO-Tx full, 1:ready)
         status |= 0x40;
     }
-    if (!fifo_tx.is_empty())
+    if (fifo_tx.is_empty())
     {
         // TxEMP (0:data exist, 1:empty)
         status |= 0x80;
@@ -449,7 +491,7 @@ static inline uint64_t ym3802_mc_timer_count(void)
 static inline void ym3802_mc_timer_load(uint64_t now_us, uint64_t next_us)
 {
     uint32_t irq_state = spin_lock_blocking(lock);
-    timer_gp_next_us = now_us + next_us;
+    timer_mc_next_us = now_us + next_us;
     spin_unlock(lock, irq_state);
 }
 
@@ -708,7 +750,7 @@ static void access_write(uint32_t bus)
             {
                 uint64_t now_us = time_us_64();
                 uint64_t count = ym3802_gp_timer_count();
-                ym3802_gp_timer_load(now_us, timer_gp_next_us + count * 8);
+                ym3802_gp_timer_load(now_us, count * 8);
             }
             break;
         case 0x86:
@@ -722,7 +764,7 @@ static void access_write(uint32_t bus)
             {
                 uint64_t now_us = time_us_64();
                 uint64_t count = ym3802_mc_timer_count();
-                ym3802_mc_timer_load(now_us, timer_mc_next_us + count * 8);
+                ym3802_mc_timer_load(now_us, count * 8);
             }
             break;
 
@@ -807,14 +849,11 @@ static void access_read(uint32_t bus)
 void process_ym3802_access(void)
 {
     enum {
-        CTRL_SHIFT = GPIO_ADDR_BUS_WIDTH + GPIO_DATA_BUS_WIDTH,
-        CS_MASK = 0x01, // CS
-        RD_MASK = 0x02, // RD
-        WR_MASK = 0x04, // WR
-        IC_MASK = 0x08, // IC
-        CSRD_MASK = CS_MASK | RD_MASK,
-        CSWR_MASK = CS_MASK | WR_MASK,
-        LOW4_MASK = 0x0f,
+        CTRL_SHIFT  = GPIO_ADDR_BUS_WIDTH + GPIO_DATA_BUS_WIDTH,
+        CSRD_MASK   = 0x01, // /CS | /RD
+        CSWR_MASK   = 0x02, // /CS | /WR
+        IC_MASK     = 0x04, // /IC
+        CTRL_MASK   = 0x07,
     };
 
     // Main loop
@@ -822,18 +861,18 @@ void process_ym3802_access(void)
     {
         const uint32_t bus = get_bus_data();
         const uint32_t ctrl_bits = (bus >> CTRL_SHIFT);
-        const uint32_t curr = (ctrl_bits >> 0) & LOW4_MASK;
-        const uint32_t prev = (ctrl_bits >> 4) & LOW4_MASK;
+        const uint32_t curr = (ctrl_bits >> 0) & CTRL_MASK;
+        const uint32_t prev = (ctrl_bits >> 3) & CTRL_MASK;
 
         // アクティブ状態検出(負論理: 0がアクティブ)
-        const bool csrd_edge = ((prev & CSRD_MASK) == 0) && ((curr & CSRD_MASK) != 0);
-        const bool cswr_edge = ((prev & CSWR_MASK) == 0) && ((curr & CSWR_MASK) != 0);
+        const bool csrd_edge = ((prev & CSRD_MASK) == 0);
+        const bool cswr_edge = ((prev & CSWR_MASK) == 0);
 
+        if (cswr_edge || csrd_edge)
         {
-            int value = ((curr & CS_MASK) != 0);
+            static int value = 0;
             gpio_put(GPIO_DEBUG, value);
-            gpio_put(GPIO_DEBUG, !value);
-            gpio_put(GPIO_DEBUG, value);
+            value = !value;
         }
 
         if (cswr_edge)
@@ -845,17 +884,20 @@ void process_ym3802_access(void)
             access_read(bus);
         }
 
-        //if (((prev ^ curr) & CS_MASK) || cswr_edge || csrd_edge)
+#ifdef DEBUG_ACCESS
         if (cswr_edge || csrd_edge)
         {
-            DEBUG_PRINTF("%08x A: %01x D: %02x IWRC: %04b -> %04b %s%s\n",
+            DEBUG_PRINTF("%08x A: %01x D: %02x IWR: %03b -> %03b %s%s\n",
                 bus, bus & 0x7, (bus >> GPIO_ADDR_BUS_WIDTH) & 0xff, prev, curr,
                 cswr_edge ? "W" : "-", csrd_edge ? "R" : "-");
         }
+#endif
 
-        if ((curr & IC_MASK) == 0)
+        const bool ic_edge = (((prev & IC_MASK) != 0) && ((curr & IC_MASK) == 0));
+        if (ic_edge)
         {
             // Initial clear
+            DEBUG_PRINTF("/IC asserted\n");
             ym3802_reset();
         }
         tight_loop_contents();
@@ -873,8 +915,10 @@ int main(int argc, char *argv[])
 
     stdio_init_all();
 
-    sleep_ms(2500);
+#ifdef DEBUG_BOOT_WAIT_MS
+    sleep_ms(DEBUG_BOOT_WAIT_MS);
     printf("Tiny-YM3802 Emulator\n");
+#endif
 
     // SPIN LOCK
     lock = spin_lock_instance(0);
@@ -888,7 +932,7 @@ int main(int argc, char *argv[])
     gpio_put(GPIO_DEBUG, 0);
     gpio_set_dir(GPIO_DEBUG, true);
 #ifdef DEBUG_PULL_UP
-    for (int i = 0; i < GPIO_BIT_WIDTH; i++)
+    for (int i = 0; i < 22; i++)
     {
         gpio_pull_up(GPIO_BASE + i);
     }
@@ -903,6 +947,7 @@ int main(int argc, char *argv[])
     gpio_pull_up(UART_TX_PIN);
 
     // PIO
+    csrdwr_init(pio1);
     rp3802_init(pio0, GPIO_BASE, reg_dma);
 
     // Initialize YM3802 registers
@@ -962,7 +1007,7 @@ int main(int argc, char *argv[])
             uint64_t count = ym3802_gp_timer_count();
             if (count > 1 && now_us >= timer_gp_next_us)
             {
-                ym3802_gp_timer_load(now_us, timer_gp_next_us + count * 8);
+                ym3802_gp_timer_load(now_us, count * 8);
                 // IRQ-7: When the timer reaches a count of zero.
                 ym3802_set_irq(1 << 7);
             }
@@ -972,7 +1017,7 @@ int main(int argc, char *argv[])
             uint64_t count = ym3802_mc_timer_count();
             if (count > 1 && now_us >= timer_mc_next_us)
             {
-                ym3802_mc_timer_load(now_us, timer_mc_next_us + count * 8);
+                ym3802_mc_timer_load(now_us, count * 8);
                 if (ym3802_reg_value(0x05) & 0x08)
                 {
                     // IRQ-1 (2): MIDI-clock detect

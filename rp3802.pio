@@ -5,10 +5,9 @@
 ;
 ; pin 0-2       A0-A2
 ; pin 3-10      D0-D7
-; pin 11        /CS
-; pin 12        /RD
-; pin 13        /WR
-; pin 14        /IC
+; pin 11        /CS | /RD
+; pin 12        /CS | /WR
+; pin 13        /IC
 
 
 ;
@@ -45,10 +44,10 @@ public entry_point:
 
 .define PUBLIC addr_bus_width   3
 .define PUBLIC data_bus_width   8
-.define PUBLIC ctrl_bus_width   4
+.define PUBLIC ctrl_bus_width   3
 .define PUBLIC data_bus_offset  (addr_bus_width)
 .define PUBLIC ctrl_bus_offset  (addr_bus_width + data_bus_width)
-.define csrd_bit_width          2
+.define csrd_bit_width          1
 
 public entry_point:
 .wrap_target
@@ -70,7 +69,7 @@ oe_out:
 ;
 ; 制御信号が変化したらCPUに状態を通知する
 ;   OUT: 下記フォーマット
-;           |31-19|   18-15   | 14-11 | 10-03 | 02-00 |
+;           |31-17|   16-14   | 13-11 | 10-03 | 02-00 |
 ;           |  0  | prev CTRL | CTRL  | DATA  | ADDR  |
 ; 
 .program rp3802_access
@@ -78,11 +77,11 @@ oe_out:
 
 .define PUBLIC addr_bus_width   3
 .define PUBLIC data_bus_width   8
-.define PUBLIC ctrl_bus_width   4
+.define PUBLIC ctrl_bus_width   3
 .define PUBLIC bit_width        (addr_bus_width + data_bus_width + ctrl_bus_width)
 
 public entry_point:
-    set     y, 0b1111
+    set     y, 0b111
     jmp     start
 capture:
     in      osr, bit_width              ; ISR = all bits (OSR)

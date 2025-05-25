@@ -54,6 +54,7 @@ pico_set_program_version(rp3802 "0.1")
 
 # Generate PIO header
 pico_generate_pio_header(rp3802 ${CMAKE_CURRENT_SOURCE_DIR}/rp3802.pio)
+pico_generate_pio_header(rp3802 ${CMAKE_CURRENT_SOURCE_DIR}/csrdwr.pio)
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_usb(rp3802 1)

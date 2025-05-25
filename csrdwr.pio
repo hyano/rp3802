@@ -1,0 +1,26 @@
+; Copyright (c) 2025 Hirokuni Yano
+;
+; Released under the MIT license.
+; see https://opensource.org/licenses/MIT
+;
+; pin 0         PIN0
+; pin 1         PIN1
+
+;
+; 隣接する2つのpinをORして、別のピンに出力する
+; /CSと/RDや、/CSと/WRの両方のアサートを検出し、ピン間の配線を通じて別のpio/smに通知する
+;
+.program csrdwr
+.side_set 1 opt
+
+public entry_point:
+    in      null, 32    side 1
+.wrap_target
+loop:
+    in      pins, 2
+    mov     x, isr
+    jmp     x--, high
+    jmp     loop        side 0
+high:
+    in      null, 32    side 1
+.wrap

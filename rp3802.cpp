@@ -846,6 +846,25 @@ static void access_read(uint32_t bus)
     }
 }
 
+#define BUS_LOG_COUNT (256)
+uint32_t bus_log[BUS_LOG_COUNT];
+uint32_t bus_log_index = 0;
+
+static inline void bus_log_push(uint32_t bus)
+{
+    uint32_t data = 0;
+    data |= ((bus  >> 0) & 0x07);
+    data |= (((bus >> 3) & 0xff) << 4);
+    data |= (((bus >> (8+3)) & 0x7) << 12);
+    data |= ((bus  >> (16+0)) & 0x07) << 16;
+    data |= (((bus >> (16+3)) & 0xff) << (16+4));
+    data |= (((bus >> (16+8+3)) & 0x7) << (16+12));
+
+    bus_log[bus_log_index] = data;
+    bus_log_index = (bus_log_index + 1) % BUS_LOG_COUNT;
+}
+
+
 void process_ym3802_access(void)
 {
     enum {
@@ -860,9 +879,8 @@ void process_ym3802_access(void)
     for (;;)
     {
         const uint32_t bus = get_bus_data();
-        const uint32_t ctrl_bits = (bus >> CTRL_SHIFT);
-        const uint32_t curr = (ctrl_bits >> 0) & CTRL_MASK;
-        const uint32_t prev = (ctrl_bits >> 3) & CTRL_MASK;
+        const uint32_t prev = (bus >> (CTRL_SHIFT +  0)) & CTRL_MASK;
+        const uint32_t curr = (bus >> (CTRL_SHIFT + 16)) & CTRL_MASK;
 
         // アクティブ状態検出(負論理: 0がアクティブ)
         const bool csrd_edge = ((prev & CSRD_MASK) == 0);
@@ -874,6 +892,8 @@ void process_ym3802_access(void)
             gpio_put(GPIO_DEBUG, value);
             value = !value;
         }
+
+        bus_log_push(bus);
 
         if (cswr_edge)
         {

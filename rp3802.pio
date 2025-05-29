@@ -69,8 +69,9 @@ oe_out:
 ;
 ; 制御信号が変化したらCPUに状態を通知する
 ;   OUT: 下記フォーマット
-;           |31-17|   16-14   | 13-11 | 10-03 | 02-00 |
-;           |  0  | prev CTRL | CTRL  | DATA  | ADDR  |
+;     | CURRENT                       | PREVIOUS                      |
+;     | 31-30 | 29-27 | 26-19 | 18-16 | 15-14 | 13-11 | 10-03 | 02-00 |
+;     |   0   | CTRL  | DATA  | ADDR  |   0   | CTRL  | DATA  | ADDR  |
 ; 
 .program rp3802_access
 
@@ -78,26 +79,24 @@ oe_out:
 .define PUBLIC addr_bus_width   3
 .define PUBLIC data_bus_width   8
 .define PUBLIC ctrl_bus_width   3
+.define PUBLIC pad_width        2
 .define PUBLIC bit_width        (addr_bus_width + data_bus_width + ctrl_bus_width)
 
 public entry_point:
     set     y, 0b111
+    mov     isr, ::y
+    in      null, (16 - bit_width)
     jmp     start
 capture:
-    in      osr, bit_width              ; ISR = all bits (OSR)
-    in      y, ctrl_bus_width           ; ISR = all bits + previous ctrl bus (Y)
-    in      null, (32 - (bit_width + ctrl_bus_width))
-                                        ; ISR padding
-    push                                ; send ISR to Host CPU
-    mov     y, x                        ; Y = save current ctrl bus
-no_rdwr:
-start:
+    push                                ; to host
+    mov     y, x                        ; save as bus (prev)
 .wrap_target
-    in      pins, bit_width
-    in      null, (32 - bit_width)
-    mov     osr, isr                    ; save bus condition to osr
-    in      null, (bit_width - ctrl_bus_width)
-                                        ; ISR = ctrl bus
-    mov     x, isr                      ; X = save current ctrl bus
-    jmp     x!=y, capture
+start:
+    in      pins, bit_width             ; ISR = pins
+    in      null, (16 - bit_width)      ; padding
+    mov     osr, isr                    ; save bus data
+    in      null, (32 - (pad_width + ctrl_bus_width))
+    mov     x, isr                      ; ctrl bus (curr)
+    mov     isr, osr                    ; restore bus data
+    jmp     x != y, capture
 .wrap

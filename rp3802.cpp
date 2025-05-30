@@ -1006,7 +1006,7 @@ int main(int argc, char *argv[])
             DEBUG_PRINTF("Tx: %02x\n", data);
         }
         // UART RX
-        if (uart_is_readable(UART_ID) && (ym3802_reg_value(0x35) & 0x01) && !fifo_rx.is_full())
+        if (uart_is_readable(UART_ID) && (ym3802_reg_value(0x35) & 0x01))
         {
             uint32_t data = (uint8_t)uart_getc(UART_ID);
 
@@ -1017,8 +1017,14 @@ int main(int argc, char *argv[])
             }
             else
             {
-                bool from_empty = fifo_rx.is_empty();
-                fifo_rx.push(data);
+                bool from_empty;
+
+                ym3802_update_rx_status();
+                from_empty = fifo_rx.is_empty();
+                if (!fifo_rx.is_full())
+                {
+                   fifo_rx.push(data);
+                }
                 ym3802_update_rx_status();
                 if (from_empty)
                 {

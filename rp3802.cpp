@@ -628,6 +628,7 @@ static void access_write(uint32_t bus)
                 {
                     // clear FIFO-RX
                     fifo_rx.reset();
+                    ym3802_update_rx_status();
                 }
                 if (data & 0x40)
                 {

@@ -1008,13 +1008,22 @@ int main(int argc, char *argv[])
         if (uart_is_readable(UART_ID) && (ym3802_reg_value(0x35) & 0x01) && !fifo_rx.is_full())
         {
             uint32_t data = (uint8_t)uart_getc(UART_ID);
-            bool from_empty = fifo_rx.is_empty();
-            fifo_rx.push(data);
-            ym3802_update_rx_status();
-            if (from_empty)
+
+            // MIDI clock filter
+            if ((ym3802_reg_value(0x35) & 0x10) && (data == 0xf8))
             {
-                // IRQ-5: When the empty FIFO-Rx is loaded with data.
-                ym3802_set_irq(1 << 5);
+                // filter out
+            }
+            else
+            {
+                bool from_empty = fifo_rx.is_empty();
+                fifo_rx.push(data);
+                ym3802_update_rx_status();
+                if (from_empty)
+                {
+                    // IRQ-5: When the empty FIFO-Rx is loaded with data.
+                    ym3802_set_irq(1 << 5);
+                }
             }
 
             DEBUG_PRINTF("Rx: %02x\n", data);

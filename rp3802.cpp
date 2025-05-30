@@ -540,6 +540,7 @@ static void access_write(uint32_t bus)
         break;
     case 0x01:
         // RGR:RW: system control
+        reg_dma[1] = data;
         if (data & 0x80)
         {
             // Initial clear
@@ -547,7 +548,6 @@ static void access_write(uint32_t bus)
         }
 
         {
-            reg_dma[1] = data;
             uint8_t base = ym3802_reg_group() * 16;
             reg_dma[4] = ym3802_reg_value(base + 4);
             reg_dma[5] = ym3802_reg_value(base + 5);

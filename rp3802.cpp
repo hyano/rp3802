@@ -27,6 +27,7 @@
 
 //#define DEBUG_VERBOSE               (1)
 //#define DEBUG_ACCESS                (1)
+//#define DEBUG_BUS_LOG               (1)
 //#define DEBUG_HEARTBEAT             (1)
 #define DEBUG_HEARTBEAT_INTERVAL    (10 * 1000 * 1000)
 //#define DEBUG_PULL_UP               (1)
@@ -971,6 +972,7 @@ static void access_read(uint32_t bus)
     }
 }
 
+#ifdef DEBUG_BUS_LOG
 #define BUS_LOG_COUNT (256)
 uint32_t bus_log[BUS_LOG_COUNT];
 uint32_t bus_log_index = 0;
@@ -988,7 +990,7 @@ static inline void bus_log_push(uint32_t bus)
     bus_log[bus_log_index] = data;
     bus_log_index = (bus_log_index + 1) % BUS_LOG_COUNT;
 }
-
+#endif
 
 void process_ym3802_access(void)
 {
@@ -1018,7 +1020,9 @@ void process_ym3802_access(void)
             value = !value;
         }
 
+#ifdef DEBUG_BUS_LOG
         bus_log_push(bus);
+#endif
 
         if (cswr_edge)
         {

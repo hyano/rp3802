@@ -572,6 +572,10 @@ static void ym3802_mc_update_status(void)
                 ym3802_set_irq(1 << 0);
 
                 ym3802_mc_cc_push(data);
+                if (!fifo_itx.is_full())
+                {
+                    fifo_itx.push(data);
+                }
                 break;
             }
         }
@@ -583,8 +587,8 @@ static void ym3802_mc_push(uint32_t data)
     if (!fifo_irx.is_full())
     {
         fifo_irx.push(data);
+        ym3802_mc_update_status();
     }
-    ym3802_mc_update_status();
 }
 
 static void ym3802_reset()
@@ -716,15 +720,6 @@ static void access_write(uint32_t bus)
                     uint32_t dummy;
                     fifo_irx.pop(dummy);
                     ym3802_mc_update_status();
-
-                    uint32_t msg = ym3802_reg_value(0x16);
-                    if (msg != 0x00)
-                    {
-                        if (!fifo_itx.is_full())
-                        {
-                            fifo_itx.push(msg);
-                        }
-                    }
                 }
             }
             break;

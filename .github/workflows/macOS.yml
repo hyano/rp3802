@@ -32,7 +32,7 @@ jobs:
         run: git submodule update --init
       - name: Install dependencies
         run: |
-          brew install cmake
+          brew install --formula cmake
           brew install --cask gcc-arm-embedded
 
       - name: Build Project
@@ -48,6 +48,6 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pico
+          name: rp3802_pico_uf2
           path: |
             ${{github.workspace}}/rp3802/build/rp3802.uf2

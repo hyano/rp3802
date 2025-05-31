@@ -31,7 +31,7 @@
 //#define DEBUG_HEARTBEAT             (1)
 #define DEBUG_HEARTBEAT_INTERVAL    (10 * 1000 * 1000)
 //#define DEBUG_PULL_UP               (1)
-#define DEBUG_BOOT_WAIT_MS          (1500)
+//#define DEBUG_BOOT_WAIT_MS          (1500)
 
 #ifdef DEBUG_VERBOSE
     #define DEBUG_PRINTF(...) printf(__VA_ARGS__)

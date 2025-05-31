@@ -498,52 +498,64 @@ static inline void ym3802_mc_timer_load(uint64_t now_us, uint64_t next_us)
 
 static void ym3802_mc_update_status(void)
 {
-    if (!fifo_irx.is_empty())
+    for (;;)
     {
-        uint32_t data;
-        fifo_irx.front(data);
-        ym3802_reg_update(0x16, data);  // DSR
-        if (data == 0xf8)
+        if (fifo_irx.is_empty())
         {
-            if (ym3802_reg_value(0x05) & 0x08)
+            ym3802_reg_update(0x16, 0x00); // DSR
+        }
+        else
+        {
+            uint32_t data;
+            fifo_irx.front(data);
+            ym3802_reg_update(0x16, data); // DSR
+            if (data == 0xf8)
             {
-                // IRQ-1 (2): MIDI-clock detect
-                ym3802_set_irq(1 << 1);
-            }
+                // automatically extract
+                fifo_irx.pop(data);
 
-            // CLICK counter
-            if (click_counter_enabled)
-            {
-                uint8_t click_counter_init = ym3802_reg_value(0x67) & 0x7f;
-                if (click_counter_init != 0)
+                if (ym3802_reg_value(0x05) & 0x08)
                 {
-                    click_counter--;
-                    if (click_counter == 0)
+                    // IRQ-1 (2): MIDI-clock detect
+                    ym3802_set_irq(1 << 1);
+                }
+
+                // CLICK counter
+                if (click_counter_enabled)
+                {
+                    uint8_t click_counter_init = ym3802_reg_value(0x67) & 0x7f;
+                    if (click_counter_init != 0)
                     {
-                        click_counter = click_counter_init;
-                        if (!(ym3802_reg_value(0x05) & 0x08))
+                        click_counter--;
+                        if (click_counter == 0)
                         {
-                            // IRQ-1 (1): Click Counter
-                            ym3802_set_irq(1 << 1);
+                            click_counter = click_counter_init;
+                            if (!(ym3802_reg_value(0x05) & 0x08))
+                            {
+                                // IRQ-1 (1): Click Counter
+                                ym3802_set_irq(1 << 1);
+                            }
                         }
                     }
                 }
             }
-        }
-        else if ((data >= 0xf9) && (data <= 0xfd))
-        {
-            if ((data == 0xfa) || (data == 0xfc))
+            else if ((data >= 0xf9) && (data <= 0xfd))
             {
-                // Start or Continue
-                click_counter_enabled = true;
+                if ((data == 0xfa) || (data == 0xfc))
+                {
+                    // Start or Continue
+                    click_counter_enabled = true;
+                }
+                else if (data == 0xfb)
+                {
+                    // Stop
+                    click_counter_enabled = false;
+                }
+                // IRQ-0: MIDI real-time message detected (F9~FD)
+                ym3802_set_irq(1 << 0);
+
+                break;
             }
-            else if (data == 0xfb)
-            {
-                // Stop
-                click_counter_enabled = false;
-            }
-            // IRQ-0: MIDI real-time message detected (F9~FD)
-            ym3802_set_irq(1 << 0);
         }
     }
 }

@@ -496,6 +496,41 @@ static inline void ym3802_mc_timer_load(uint64_t now_us, uint64_t next_us)
     spin_unlock(lock, irq_state);
 }
 
+static void ym3802_mc_cc_push(uint32_t data)
+{
+    if (data == 0xf8)
+    {
+        // CLICK counter
+        if (click_counter_enabled)
+        {
+            uint8_t click_counter_init = ym3802_reg_value(0x67) & 0x7f;
+            if (click_counter_init != 0)
+            {
+                click_counter--;
+                if (click_counter == 0)
+                {
+                    click_counter = click_counter_init;
+                    if (!(ym3802_reg_value(0x05) & 0x08))
+                    {
+                        // IRQ-1 (1): Click Counter
+                        ym3802_set_irq(1 << 1);
+                    }
+                }
+            }
+        }
+    }
+    if ((data == 0xfa) || (data == 0xfc))
+    {
+        // Start or Continue
+        click_counter_enabled = true;
+    }
+    else if (data == 0xfb)
+    {
+        // Stop
+        click_counter_enabled = false;
+    }
+}
+
 static void ym3802_mc_update_status(void)
 {
     for (;;)
@@ -514,46 +549,29 @@ static void ym3802_mc_update_status(void)
                 // automatically extract
                 fifo_irx.pop(data);
 
+                if (ym3802_reg_value(0x14) & 0x10)
+                {
+                    // enable auto MIDI-clock (F8)h output
+                    if (!fifo_itx.is_full())
+                    {
+                        fifo_irx.push(0xf8);
+                    }
+                }
+
                 if (ym3802_reg_value(0x05) & 0x08)
                 {
                     // IRQ-1 (2): MIDI-clock detect
                     ym3802_set_irq(1 << 1);
                 }
 
-                // CLICK counter
-                if (click_counter_enabled)
-                {
-                    uint8_t click_counter_init = ym3802_reg_value(0x67) & 0x7f;
-                    if (click_counter_init != 0)
-                    {
-                        click_counter--;
-                        if (click_counter == 0)
-                        {
-                            click_counter = click_counter_init;
-                            if (!(ym3802_reg_value(0x05) & 0x08))
-                            {
-                                // IRQ-1 (1): Click Counter
-                                ym3802_set_irq(1 << 1);
-                            }
-                        }
-                    }
-                }
+                ym3802_mc_cc_push(data);
             }
             else if ((data >= 0xf9) && (data <= 0xfd))
             {
-                if ((data == 0xfa) || (data == 0xfc))
-                {
-                    // Start or Continue
-                    click_counter_enabled = true;
-                }
-                else if (data == 0xfb)
-                {
-                    // Stop
-                    click_counter_enabled = false;
-                }
                 // IRQ-0: MIDI real-time message detected (F9~FD)
                 ym3802_set_irq(1 << 0);
 
+                ym3802_mc_cc_push(data);
                 break;
             }
         }
@@ -665,6 +683,25 @@ static void access_write(uint32_t bus)
         case 0x15:
             // DCR:W: MIDI realtime message request
             ym3802_reg_update(regno, data);
+            {
+                static const uint8_t msg_table[8] = {0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0x00, 0x00};
+                uint32_t dest = data;
+                uint32_t msg = msg_table[data & 7];
+                if (msg == 0xf8)
+                {
+                    dest |= 0xf8;
+                }
+                if (dest & 0x80)
+                {
+                    // Tx
+                    fifo_itx.push(msg);
+                }
+                if (dest & 0x20)
+                {
+                    // Click Counter
+                    ym3802_mc_cc_push(msg);
+                }
+            }
             break;
         case 0x16:
             // DSR:R: FIFO-IRx data
@@ -674,9 +711,21 @@ static void access_write(uint32_t bus)
             ym3802_reg_update(regno, data);
             if (data & 0x01)
             {
-                uint32_t dummy;
-                fifo_irx.pop(dummy);
-                ym3802_mc_update_status();
+                if (!fifo_irx.is_empty())
+                {
+                    uint32_t dummy;
+                    fifo_irx.pop(dummy);
+                    ym3802_mc_update_status();
+
+                    uint32_t msg = ym3802_reg_value(0x16);
+                    if (msg != 0x00)
+                    {
+                        if (!fifo_itx.is_full())
+                        {
+                            fifo_itx.push(msg);
+                        }
+                    }
+                }
             }
             break;
 
@@ -1071,7 +1120,15 @@ int main(int argc, char *argv[])
     for (;;)
     {
         // UART TX
-        if (!fifo_tx.is_empty() && (ym3802_reg_value(0x55) & 0x01) && uart_is_writable(UART_ID))
+        if (!fifo_itx.is_empty() && uart_is_writable(UART_ID))
+        {
+            uint32_t data;
+            fifo_itx.pop(data);
+            uart_putc_raw(UART_ID, data & 0xff);
+
+            DEBUG_PRINTF("ITx: %02x\n", data);
+        }
+        else if (!fifo_tx.is_empty() && (ym3802_reg_value(0x55) & 0x01) && uart_is_writable(UART_ID))
         {
             uint32_t data;
             fifo_tx.pop(data);

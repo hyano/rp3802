@@ -97,6 +97,7 @@ uint8_t reg_dma[16] __attribute__ ((aligned (16)));
 uint64_t timer_gp_next_us = 0;
 uint64_t timer_mc_next_us = 0;
 uint32_t click_counter = 0;
+bool click_counter_enabled = false;
 
 // lock for multicore
 spin_lock_t *lock;
@@ -495,6 +496,67 @@ static inline void ym3802_mc_timer_load(uint64_t now_us, uint64_t next_us)
     spin_unlock(lock, irq_state);
 }
 
+static void ym3802_mc_update_status(void)
+{
+    if (!fifo_irx.is_empty())
+    {
+        uint32_t data;
+        fifo_irx.front(data);
+        ym3802_reg_update(0x16, data);  // DSR
+        if (data == 0xf8)
+        {
+            if (ym3802_reg_value(0x05) & 0x08)
+            {
+                // IRQ-1 (2): MIDI-clock detect
+                ym3802_set_irq(1 << 1);
+            }
+
+            // CLICK counter
+            if (click_counter_enabled)
+            {
+                uint8_t click_counter_init = ym3802_reg_value(0x67) & 0x7f;
+                if (click_counter_init != 0)
+                {
+                    click_counter--;
+                    if (click_counter == 0)
+                    {
+                        click_counter = click_counter_init;
+                        if (!(ym3802_reg_value(0x05) & 0x08))
+                        {
+                            // IRQ-1 (1): Click Counter
+                            ym3802_set_irq(1 << 1);
+                        }
+                    }
+                }
+            }
+        }
+        else if ((data >= 0xf9) && (data <= 0xfd))
+        {
+            if ((data == 0xfa) || (data == 0xfc))
+            {
+                // Start or Continue
+                click_counter_enabled = true;
+            }
+            else if (data == 0xfb)
+            {
+                // Stop
+                click_counter_enabled = false;
+            }
+            // IRQ-0: MIDI real-time message detected (F9~FD)
+            ym3802_set_irq(1 << 0);
+        }
+    }
+}
+
+static void ym3802_mc_push(uint32_t data)
+{
+    if (!fifo_irx.is_full())
+    {
+        fifo_irx.push(data);
+    }
+    ym3802_mc_update_status();
+}
+
 static void ym3802_reset()
 {
     memset(reg, 0, sizeof(reg));
@@ -598,6 +660,12 @@ static void access_write(uint32_t bus)
         case 0x17:
             // DNR:W: FIFO-IRx control
             ym3802_reg_update(regno, data);
+            if (data & 0x01)
+            {
+                uint32_t dummy;
+                fifo_irx.pop(dummy);
+                ym3802_mc_update_status();
+            }
             break;
 
         case 0x24:
@@ -1033,6 +1101,17 @@ int main(int argc, char *argv[])
                 }
             }
 
+            if ((data == 0xf8) && ((ym3802_reg_value(0x14) & 0x03) == 0x01))
+            {
+                // MIDI clock
+                ym3802_mc_push(data);
+            }
+            else if ((data >= 0xf9) && (data <= 0xfd) && (ym3802_reg_value(0x14) & 0x08))
+            {
+                // MIDI real-time message
+                ym3802_mc_push(data);
+            }
+
             DEBUG_PRINTF("Rx: %02x\n", data);
         }
 
@@ -1054,25 +1133,9 @@ int main(int argc, char *argv[])
             if (count > 1 && now_us >= timer_mc_next_us)
             {
                 ym3802_mc_timer_load(now_us, count * 8);
-                if (ym3802_reg_value(0x05) & 0x08)
+                if ((ym3802_reg_value(0x05) & 0x14) == 0x03)
                 {
-                    // IRQ-1 (2): MIDI-clock detect
-                    ym3802_set_irq(1 << 1);
-                }
-
-                uint8_t click_counter_init = ym3802_reg_value(0x67) & 0x7f;
-                if (click_counter_init != 0)
-                {
-                    click_counter--;
-                    if (click_counter == 0)
-                    {
-                        click_counter = click_counter_init;
-                        if (!(ym3802_reg_value(0x05) & 0x08))
-                        {
-                            // IRQ-1 (1): Click Counter
-                            ym3802_set_irq(1 << 1);
-                        }
-                    }
+                    ym3802_mc_push(0xf8);
                 }
             }
         }

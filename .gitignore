@@ -2,5 +2,7 @@
 .vscode/
 build/
 
-# temporarily ignore
-board/
+# KiCad files
+board/rp3802-backups
+board/*.bak
+fp-info-cache

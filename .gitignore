@@ -3,6 +3,7 @@
 build/
 
 # KiCad files
-board/rp3802-backups
+board/production/
+board/rp3802-backups/
 board/*.bak
 fp-info-cache

@@ -5,7 +5,7 @@
 	(uuid "87290940-d028-4b1f-a2e0-6336af8811ad")
 	(paper "A4")
 	(title_block
-		(title "RP3803: Tiny YM3802 Emulator by Raspberry Pi Pico")
+		(title "RP3802: Tiny YM3802 Emulator by Raspberry Pi Pico")
 		(date "2025-05-31")
 		(rev "1.0")
 		(comment 1 "for DMP-6BM1")
@@ -4997,16 +4997,16 @@
 	)
 	(symbol
 		(lib_id "Device:LED_Small")
-		(at 73.66 173.99 180)
+		(at 73.66 173.99 0)
+		(mirror y)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "31750271-415c-42ed-81e7-8a4c5f94ce9b")
 		(property "Reference" "D5"
-			(at 73.5965 167.64 0)
+			(at 73.914 170.942 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5014,7 +5014,7 @@
 			)
 		)
 		(property "Value" "GP28"
-			(at 73.5965 170.18 0)
+			(at 73.914 168.402 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5340,16 +5340,16 @@
 	)
 	(symbol
 		(lib_id "Device:LED_Small")
-		(at 73.66 162.56 180)
+		(at 73.66 162.56 0)
+		(mirror y)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "6ae2d839-4455-48ca-b8fb-934fdc59cfcc")
 		(property "Reference" "D4"
-			(at 73.5965 156.21 0)
+			(at 73.914 159.258 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5357,7 +5357,7 @@
 			)
 		)
 		(property "Value" "GP27"
-			(at 73.5965 158.75 0)
+			(at 73.914 156.718 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6355,16 +6355,16 @@
 	)
 	(symbol
 		(lib_id "Device:LED_Small")
-		(at 73.66 139.7 180)
+		(at 73.66 139.7 0)
+		(mirror y)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "e06501fd-37d1-451b-a551-578a5af52663")
 		(property "Reference" "D2"
-			(at 73.5965 133.35 0)
+			(at 73.914 136.144 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6372,7 +6372,7 @@
 			)
 		)
 		(property "Value" "GP22"
-			(at 73.5965 135.89 0)
+			(at 73.914 133.604 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6498,16 +6498,16 @@
 	)
 	(symbol
 		(lib_id "Device:LED_Small")
-		(at 73.66 151.13 180)
+		(at 73.66 151.13 0)
+		(mirror y)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "f2c4a496-5a04-4cc2-8ffc-b6332ad50f3b")
 		(property "Reference" "D3"
-			(at 73.5965 144.78 0)
+			(at 73.914 148.082 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6515,7 +6515,7 @@
 			)
 		)
 		(property "Value" "GP26"
-			(at 73.5965 147.32 0)
+			(at 73.914 145.542 0)
 			(effects
 				(font
 					(size 1.27 1.27)

@@ -97,38 +97,38 @@
 #define UART_RX_PIN             (1)
 
 
-FIFO<uint32_t, 16> fifo_tx;
-FIFO<uint32_t, 128> fifo_rx;
-FIFO<uint32_t, 4> fifo_itx;
-FIFO<uint32_t, 4> fifo_irx;
+static FIFO<uint32_t, 16> fifo_tx;
+static FIFO<uint32_t, 128> fifo_rx;
+static FIFO<uint32_t, 4> fifo_itx;
+static FIFO<uint32_t, 4> fifo_irx;
 
 // registers
-uint8_t reg[16 * 0x10];
+static uint8_t reg[16 * 0x10];
 // for DMA/PIO read access
-uint8_t reg_dma[16] __attribute__ ((aligned (16)));
+static uint8_t reg_dma[16] __attribute__ ((aligned (16)));
 
 // timer
-uint64_t timer_gp_next_us = 0;
-uint64_t timer_mc_next_us = 0;
-uint32_t click_counter = 0;
-bool click_counter_enabled = false;
+static uint64_t timer_gp_next_us = 0;
+static uint64_t timer_mc_next_us = 0;
+static uint32_t click_counter = 0;
+static bool click_counter_enabled = false;
 
 // lock for multicore
-spin_lock_t *lock;
+static spin_lock_t *lock;
 
 // heartbeat
-uint64_t heartbeat_led_next_us = 0;
-uint64_t heartbeat_stdio_next_us = 0;
+static uint64_t heartbeat_led_next_us = 0;
+static uint64_t heartbeat_stdio_next_us = 0;
 
 // LED
-PIO pio_led_tx;
-uint sm_led_tx;
+static PIO pio_led_tx;
+static uint sm_led_tx;
 #define LED_ON_TIME_TX_MS   (25)
-PIO pio_led_rx;
-uint sm_led_rx;
+static PIO pio_led_rx;
+static uint sm_led_rx;
 #define LED_ON_TIME_RX_MS   (25)
-PIO pio_led_irq;
-uint sm_led_irq;
+static PIO pio_led_irq;
+static uint sm_led_irq;
 #define LED_ON_TIME_IRQ_MS  (10)
 
 // YM3802 bus access log (FIFO)
@@ -198,12 +198,12 @@ static inline uint32_t rp3802_access_buffer_wp(void)
     return (*rp3802_access_buffer_wp_ptr / 4) % RP3802_ACCESS_BUFFER_COUNT;
 }
 
-void rp3802_access_start(void)
+static void rp3802_access_start(void)
 {
     rp3802_access_buffer_rp = rp3802_access_buffer_wp();
 }
 
-bool rp3802_access_is_empty(void)
+static inline bool rp3802_access_is_empty(void)
 {
 #ifdef DEBUG_PROFILE_ACCESS_BUFFER
     {
@@ -220,7 +220,7 @@ bool rp3802_access_is_empty(void)
     return (rp3802_access_buffer_rp == rp3802_access_buffer_wp());
 }
 
-uint32_t rp3802_access_pop(void)
+static inline uint32_t rp3802_access_pop(void)
 {
     const uint32_t ret = rp3802_access_buffer[rp3802_access_buffer_rp];
     rp3802_access_buffer_rp = (rp3802_access_buffer_rp + 1) % RP3802_ACCESS_BUFFER_COUNT;
@@ -351,7 +351,7 @@ static void csrdwr_init(PIO pio)
 }
 
 
-static void led_on(PIO pio, uint sm, uint32_t ms)
+static inline void led_on(PIO pio, uint sm, uint32_t ms)
 {
     pio_sm_put(pio, sm, ms * 100);
 }
@@ -1059,7 +1059,7 @@ static inline void bus_log_push(uint32_t bus)
 }
 #endif
 
-void process_ym3802_access(void)
+static void process_ym3802_access(void)
 {
     enum {
         CTRL_SHIFT  = GPIO_ADDR_BUS_WIDTH + GPIO_DATA_BUS_WIDTH,

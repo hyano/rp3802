@@ -35,19 +35,36 @@ jobs:
           brew install --formula cmake
           brew install --cask gcc-arm-embedded
 
-      - name: Build Project
+      - name: Build Project (pico)
         working-directory: ${{github.workspace}}/rp3802
         # bash required otherwise this mysteriously (no error) fails at "Generating cyw43_bus_pio_spi.pio.h"
         shell: bash
         run: |
-          mkdir build
-          cd build
+          mkdir build_pico
+          cd build_pico
           cmake .. -G "Unix Makefiles" -DPICO_SDK_PATH=../../pico-sdk -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico
           cmake --build .
 
-      - name: Upload Artifact
+      - name: Build Project (pico2)
+        working-directory: ${{github.workspace}}/rp3802
+        # bash required otherwise this mysteriously (no error) fails at "Generating cyw43_bus_pio_spi.pio.h"
+        shell: bash
+        run: |
+          mkdir build_pico2
+          cd build_pico2
+          cmake .. -G "Unix Makefiles" -DPICO_SDK_PATH=../../pico-sdk -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico2
+          cmake --build .
+
+      - name: Upload Artifact (pico)
         uses: actions/upload-artifact@v4
         with:
           name: rp3802_pico_uf2
           path: |
-            ${{github.workspace}}/rp3802/build/rp3802.uf2
+            ${{github.workspace}}/rp3802/build_pico/rp3802.uf2
+
+      - name: Upload Artifact (pico2)
+        uses: actions/upload-artifact@v4
+        with:
+          name: rp3802_pic2_uf2
+          path: |
+            ${{github.workspace}}/rp3802/build_pico2/rp3802.uf2

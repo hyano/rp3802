@@ -1,10 +1,14 @@
-# RP3802: YM3802 emulator by Raspberry Pi Pico
+# RP3802: Tiny YM3802 emulator by Raspberry Pi Pico
 
-RP3802 is a device that emulates the pin-level behavior of the YAMAHA MIDI control chip YM3802 using a Raspberry Pi Pico.
-This program is in the early stages of development. It has not been tested for functionality yet.
+RP3802 is a pin-level emulator of the YAMAHA MIDI control chip YM3802 using a Raspberry Pi Pico.
 
-The input/output voltage of the Raspberry Pi Pico's GPIO is 3.3V, while the input/output voltage of the YM3802 is 5V. However, for cost reduction, no level shifter is used.
-The Raspberry Pi Pico is overclocked to 250MHz for operation.
+## Notes
+
+* Please use at your own risk.
+* The input/output voltage of the Raspberry Pi Pico's GPIO is 3.3V, while the input/output voltage of the YM3802 is 5V. However, no level shifter is used for cost reduction.
+* The Raspberry Pi Pico is overclocked to 250MHz for operation.
+* Serial I/F settings are fixed at 31,250bps, 8bits, no parity.
+* Supports only major functions for X68000 games and utilities.
 
 ## Pin assignment
 
@@ -53,3 +57,6 @@ The Raspberry Pi Pico is overclocked to 250MHz for operation.
 | I/O controller            | Not implemented       |
 | IRQ controller            | Implemented           |
 
+## License
+
+RP3802 is licensed under the MIT License. See [LICENSE][].

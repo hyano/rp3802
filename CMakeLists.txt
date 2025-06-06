@@ -30,7 +30,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico CACHE STRING "Board type")
+set(PICO_BOARD pico2 CACHE STRING "Board type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -55,6 +55,7 @@ pico_set_program_version(rp3802 "0.1")
 # Generate PIO header
 pico_generate_pio_header(rp3802 ${CMAKE_CURRENT_SOURCE_DIR}/rp3802.pio)
 pico_generate_pio_header(rp3802 ${CMAKE_CURRENT_SOURCE_DIR}/csrdwr.pio)
+pico_generate_pio_header(rp3802 ${CMAKE_CURRENT_SOURCE_DIR}/led.pio)
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_usb(rp3802 1)

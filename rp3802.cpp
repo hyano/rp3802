@@ -24,10 +24,13 @@
 
 #include "rp3802.pio.h"
 #include "csrdwr.pio.h"
+#include "led.pio.h"
 
 //#define DEBUG_VERBOSE               (1)
 //#define DEBUG_ACCESS                (1)
 //#define DEBUG_BUS_LOG               (1)
+#define DEBUG_HEARTBEAT_LED           (1)
+#define DEBUG_HEARTBEAT_LED_INTERVAL  (500 * 1000)
 //#define DEBUG_HEARTBEAT             (1)
 #define DEBUG_HEARTBEAT_INTERVAL    (10 * 1000 * 1000)
 //#define DEBUG_PULL_UP               (1)
@@ -55,7 +58,12 @@
 //  GPIO 19         /WR
 //  GPIO 20         /CSRD --> GPIO 13
 //  GPIO 21         /CSWR --> GPIO 14
-//  GPIO 28         DEBUG
+//
+//  GPIO 22         LED
+//  GPIO 25         LED (on board)
+//  GPIO 26         LED
+//  GPIO 27         LED
+//  GPIO 28         LED
 //
 
 #define GPIO_ADDR_BUS_WIDTH     (3)
@@ -73,10 +81,14 @@
 #define GPIO_WR                 (19)
 #define GPIO_CSRD               (20)
 #define GPIO_CSWR               (21)
-#define GPIO_DEBUG              (28)
+#define GPIO_ALL_MASK           ((1 << 22) - 1)
 
-#define GPIO_ALL_MASK           (((1 << 22) - 1) | (1 << GPIO_DEBUG))
+#define GPIO_LED_BOARD          (25)
 
+#define GPIO_LED_ACTIVE         (22)
+#define GPIO_LED_TX             (26)
+#define GPIO_LED_RX             (27)
+#define GPIO_LED_IRQ            (28)
 
 #define UART_ID                 (uart0)
 #define BAUD_RATE               (31250)
@@ -104,7 +116,19 @@ bool click_counter_enabled = false;
 spin_lock_t *lock;
 
 // heartbeat
-uint64_t heartbeat_next_us = 0;
+uint64_t heartbeat_led_next_us = 0;
+uint64_t heartbeat_stdio_next_us = 0;
+
+// LED
+PIO pio_led_tx;
+uint sm_led_tx;
+#define LED_ON_TIME_TX_MS   (25)
+PIO pio_led_rx;
+uint sm_led_rx;
+#define LED_ON_TIME_RX_MS   (25)
+PIO pio_led_irq;
+uint sm_led_irq;
+#define LED_ON_TIME_IRQ_MS  (10)
 
 // YM3802 bus access log (FIFO)
 #define RP3802_ACCESS_BUFFER_SHIFT (12)
@@ -280,6 +304,7 @@ static void rp3802_init(PIO pio, uint pin, uint8_t *reg_ptr)
     rp3802_access_init(pio, sm_rp3802_access, offset_rp3802_access, pin);
 }
 
+
 static void csrdwr_sm_init(PIO pio, uint sm, uint offset, uint pin_in, uint pin_out)
 {
     pio_gpio_init(pio, pin_in + 0);
@@ -308,6 +333,31 @@ static void csrdwr_init(PIO pio)
     // /CS | /WR
     uint sm_cswr = pio_claim_unused_sm(pio, true);
     csrdwr_sm_init(pio, sm_cswr, offset_csrdwr, GPIO_CS, GPIO_CSWR);
+}
+
+
+static void led_on(PIO pio, uint sm, uint32_t ms)
+{
+    pio_sm_put(pio, sm, ms * 100);
+}
+
+static uint led_on_init(PIO pio, uint pin)
+{
+    // common pio program
+    uint offset = pio_add_program(pio, &led_on_program);
+
+    uint sm = pio_claim_unused_sm(pio, true);
+
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+    pio_sm_config c = led_on_program_get_default_config(offset);
+    sm_config_set_sideset_pins(&c, pin);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / (1000 * 100 * 32));
+    pio_sm_init(pio, sm, offset + led_on_offset_entry_point, &c);
+    pio_sm_set_enabled(pio, sm, true);
+
+    return sm;
 }
 
 
@@ -455,6 +505,7 @@ static inline void ym3802_set_irq(uint8_t irq)
     {
         // Assert IRQ line
         gpio_put(GPIO_IRQ, 0);
+        led_on(pio_led_irq, sm_led_irq, LED_ON_TIME_IRQ_MS);
     }
     spin_unlock(lock, irq_state);
 }
@@ -469,6 +520,7 @@ static inline void ym3802_clr_irq(uint8_t irq)
     {
         // Clear IRQ line
         gpio_put(GPIO_IRQ, 1);
+        //led_on(pio_led_irq, sm_led_irq, 0);
     }
     spin_unlock(lock, irq_state);
 }
@@ -1013,13 +1065,6 @@ void process_ym3802_access(void)
         const bool csrd_edge = ((prev & CSRD_MASK) == 0);
         const bool cswr_edge = ((prev & CSWR_MASK) == 0);
 
-        if (cswr_edge || csrd_edge)
-        {
-            static int value = 0;
-            gpio_put(GPIO_DEBUG, value);
-            value = !value;
-        }
-
 #ifdef DEBUG_BUS_LOG
         bus_log_push(bus);
 #endif
@@ -1055,6 +1100,10 @@ void process_ym3802_access(void)
 
 int main(int argc, char *argv[])
 {
+#ifdef DEBUG_HEARTBEAT_LED
+    int heartbeat_led = 0;
+#endif
+
     // vreg_set_voltage(VREG_VOLTAGE_1_10); // VREG_VOLTAGE_DEFAULT
     // vreg_set_voltage(VREG_VOLTAGE_1_25);
     vreg_set_voltage(VREG_VOLTAGE_MAX); // 1_30
@@ -1077,9 +1126,17 @@ int main(int argc, char *argv[])
     // IRQ line
     gpio_put(GPIO_IRQ, 1);
     gpio_set_dir(GPIO_IRQ, true);
-    // DEBUG
-    gpio_put(GPIO_DEBUG, 0);
-    gpio_set_dir(GPIO_DEBUG, true);
+    // On board LED
+    gpio_init(GPIO_LED_BOARD);
+    gpio_put(GPIO_LED_BOARD, 0);
+    gpio_set_dir(GPIO_LED_BOARD, true);
+    // LED
+    gpio_init(GPIO_LED_ACTIVE);
+    gpio_put(GPIO_LED_ACTIVE, 0);
+    gpio_set_dir(GPIO_LED_ACTIVE, true);
+    gpio_init(GPIO_LED_TX);
+    gpio_init(GPIO_LED_RX);
+    gpio_init(GPIO_LED_IRQ);
 #ifdef DEBUG_PULL_UP
     for (int i = 0; i < 22; i++)
     {
@@ -1099,6 +1156,14 @@ int main(int argc, char *argv[])
     csrdwr_init(pio1);
     rp3802_init(pio0, GPIO_BASE, reg_dma);
 
+    // PIO (LED)
+    pio_led_tx = pio0;
+    sm_led_tx = led_on_init(pio_led_tx, GPIO_LED_TX);
+    pio_led_rx = pio1;
+    sm_led_rx = led_on_init(pio_led_rx, GPIO_LED_RX);
+    pio_led_irq = pio1;
+    sm_led_irq = led_on_init(pio_led_irq, GPIO_LED_IRQ);
+
     // Initialize YM3802 registers
     ym3802_poweron();
 
@@ -1109,7 +1174,8 @@ int main(int argc, char *argv[])
         timer_mc_next_us = now_us;
 
         // heartbeat
-        heartbeat_next_us = now_us + DEBUG_HEARTBEAT_INTERVAL;
+        heartbeat_led_next_us = now_us + DEBUG_HEARTBEAT_LED_INTERVAL;
+        heartbeat_stdio_next_us = now_us + DEBUG_HEARTBEAT_INTERVAL;
     }
 
     // Register accessing routine
@@ -1124,6 +1190,7 @@ int main(int argc, char *argv[])
             uint32_t data;
             fifo_itx.pop(data);
             uart_putc_raw(UART_ID, data & 0xff);
+            //led_on(pio_led_tx, sm_led_tx, LED_ON_TIME_TX_MS);
 
             DEBUG_PRINTF("ITx: %02x\n", data);
         }
@@ -1138,6 +1205,7 @@ int main(int argc, char *argv[])
                 // IRQ-6: When the FIFO-Tx becomes empty through the data extraction by the transmitter.
                 ym3802_set_irq(1 << 6);
             }
+            led_on(pio_led_tx, sm_led_tx, LED_ON_TIME_TX_MS);
 
             DEBUG_PRINTF("Tx: %02x\n", data);
         }
@@ -1145,6 +1213,7 @@ int main(int argc, char *argv[])
         if (uart_is_readable(UART_ID) && (ym3802_reg_value(0x35) & 0x01))
         {
             uint32_t data = (uint8_t)uart_getc(UART_ID);
+            led_on(pio_led_rx, sm_led_rx, LED_ON_TIME_RX_MS);
 
             // MIDI clock filter
             if ((ym3802_reg_value(0x35) & 0x10) && (data == 0xf8))
@@ -1207,10 +1276,19 @@ int main(int argc, char *argv[])
                 }
             }
         }
-#ifdef DEBUG_HEARTBEAT
-        if (now_us >= heartbeat_next_us)
+#ifdef DEBUG_HEARTBEAT_LED
+        if (now_us >= heartbeat_led_next_us)
         {
-            heartbeat_next_us += DEBUG_HEARTBEAT_INTERVAL;
+            heartbeat_led ^= 1;
+            gpio_put(GPIO_LED_BOARD, heartbeat_led);
+            gpio_put(GPIO_LED_ACTIVE, heartbeat_led);
+            heartbeat_led_next_us += DEBUG_HEARTBEAT_LED_INTERVAL;
+        }
+#endif
+#ifdef DEBUG_HEARTBEAT
+        if (now_us >= heartbeat_stdio_next_us)
+        {
+            heartbeat_stdio_next_us += DEBUG_HEARTBEAT_INTERVAL;
             DEBUG_PRINTF("HEARTBEAT\n");
         }
 #endif

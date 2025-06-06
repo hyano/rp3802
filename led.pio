@@ -1,0 +1,22 @@
+; Copyright (c) 2025 Hirokuni Yano
+;
+; Released under the MIT license.
+; see https://opensource.org/licenses/MIT
+;
+
+;
+; CPUから指定された数値 x 32クロックの間sideピンをhighにする
+;
+.program led_on
+.side_set 1 opt
+
+public entry_point:
+off:
+    set     x, 0        side 0
+.wrap_target
+loop:
+    pull    noblock             [7]
+    mov     x, osr              [7]
+    jmp     !x, off             [7]
+    jmp     x--, loop   side 1  [7]
+.wrap

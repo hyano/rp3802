@@ -27,7 +27,10 @@ RP3802 is a pin-level emulator of the YAMAHA MIDI control chip YM3802 using a Ra
 | GPIO 19       | Input     | YM3802 /WR        |               |
 | GPIO 20       | Output    | /CS \| /RD        | --> GPIO 13   |
 | GPIO 21       | Output    | /CS \| /RD        | --> GPIO 14   |
-| GPIO 28       | Output    | DEBUG             |               |
+| GPIO 22       | Output    | LED (HEARTBEAT)   |               |
+| GPIO 26       | Output    | LED (TX)          |               |
+| GPIO 27       | Output    | LED (RX)          |               |
+| GPIO 28       | Output    | LED (IRQ)         |               |
 
 ## Implementation status
 

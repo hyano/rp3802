@@ -35,6 +35,7 @@
 #define DEBUG_HEARTBEAT_INTERVAL    (10 * 1000 * 1000)
 //#define DEBUG_PULL_UP               (1)
 //#define DEBUG_BOOT_WAIT_MS          (1500)
+//#define DEBUG_PROFILE_ACCESS_BUFFER (1)
 
 #ifdef DEBUG_VERBOSE
     #define DEBUG_PRINTF(...) printf(__VA_ARGS__)
@@ -131,14 +132,16 @@ uint sm_led_irq;
 #define LED_ON_TIME_IRQ_MS  (10)
 
 // YM3802 bus access log (FIFO)
-#define RP3802_ACCESS_BUFFER_SHIFT (12)
+#define RP3802_ACCESS_BUFFER_SHIFT (8)
 #define RP3802_ACCESS_BUFFER_COUNT (1 << RP3802_ACCESS_BUFFER_SHIFT)
 static uint32_t rp3802_access_buffer[RP3802_ACCESS_BUFFER_COUNT] __attribute__ ((aligned (sizeof(uint32_t) * RP3802_ACCESS_BUFFER_COUNT)));
 static uint32_t rp3802_access_buffer_count = RP3802_ACCESS_BUFFER_COUNT;
 static int rp3802_access_dma_ch = 0;
 static volatile uint32_t *rp3802_access_buffer_wp_ptr = NULL;
 static uint32_t rp3802_access_buffer_rp = 0;
-
+#ifdef DEBUG_PROFILE_ACCESS_BUFFER
+static uint32_t rp3802_access_buffer_count_max = 0;
+#endif
 
 static void rp3802_reg_read_init(PIO pio, uint sm, uint offset, uint pin, uint8_t *reg_ptr)
 {
@@ -202,6 +205,18 @@ void rp3802_access_start(void)
 
 bool rp3802_access_is_empty(void)
 {
+#ifdef DEBUG_PROFILE_ACCESS_BUFFER
+    {
+        uint32_t wp = rp3802_access_buffer_wp();
+        uint32_t rp = rp3802_access_buffer_rp;
+        uint32_t count = ((wp + RP3802_ACCESS_BUFFER_COUNT) - rp) % RP3802_ACCESS_BUFFER_COUNT;
+        if (count > rp3802_access_buffer_count_max)
+        {
+            rp3802_access_buffer_count_max = count;
+        }
+    }
+#endif
+
     return (rp3802_access_buffer_rp == rp3802_access_buffer_wp());
 }
 

@@ -59,4 +59,4 @@ RP3802 is a pin-level emulator of the YAMAHA MIDI control chip YM3802 using a Ra
 
 ## License
 
-RP3802 is licensed under the MIT License. See [LICENSE][].
+RP3802 is licensed under the MIT License. See [LICENSE](LICENSE).

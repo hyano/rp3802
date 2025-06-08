@@ -73,6 +73,7 @@ target_include_directories(rp3802 PRIVATE
 # Add any user requested libraries
 target_link_libraries(rp3802
         pico_multicore
+        hardware_gpio
         hardware_pio
         hardware_dma
         hardware_sync

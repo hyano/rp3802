@@ -35,7 +35,7 @@
 #define DEBUG_HEARTBEAT_INTERVAL    (10 * 1000 * 1000)
 //#define DEBUG_PULL_UP               (1)
 //#define DEBUG_BOOT_WAIT_MS          (1500)
-//#define DEBUG_PROFILE_ACCESS_BUFFER (1)
+#define DEBUG_PROFILE_ACCESS_BUFFER (1)
 
 #ifdef DEBUG_VERBOSE
     #define DEBUG_PRINTF(...) printf(__VA_ARGS__)
@@ -207,12 +207,17 @@ static inline bool rp3802_access_is_empty(void)
 {
 #ifdef DEBUG_PROFILE_ACCESS_BUFFER
     {
-        uint32_t wp = rp3802_access_buffer_wp();
-        uint32_t rp = rp3802_access_buffer_rp;
-        uint32_t count = ((wp + RP3802_ACCESS_BUFFER_COUNT) - rp) % RP3802_ACCESS_BUFFER_COUNT;
+        const uint32_t wp = rp3802_access_buffer_wp();
+        const uint32_t rp = rp3802_access_buffer_rp;
+        const uint32_t count = ((wp + RP3802_ACCESS_BUFFER_COUNT) - rp) % RP3802_ACCESS_BUFFER_COUNT;
         if (count > rp3802_access_buffer_count_max)
         {
             rp3802_access_buffer_count_max = count;
+        }
+        if (count > (RP3802_ACCESS_BUFFER_COUNT / 2))
+        {
+            // half of access buffer is consumed...
+            gpio_put(GPIO_LED_BOARD, 0);
         }
     }
 #endif
@@ -1143,7 +1148,7 @@ int main(int argc, char *argv[])
     gpio_set_dir(GPIO_IRQ, true);
     // On board LED
     gpio_init(GPIO_LED_BOARD);
-    gpio_put(GPIO_LED_BOARD, 0);
+    gpio_put(GPIO_LED_BOARD, 1);
     gpio_set_dir(GPIO_LED_BOARD, true);
     // LED
     gpio_init(GPIO_LED_ACTIVE);
@@ -1295,7 +1300,6 @@ int main(int argc, char *argv[])
         if (now_us >= heartbeat_led_next_us)
         {
             heartbeat_led ^= 1;
-            gpio_put(GPIO_LED_BOARD, heartbeat_led);
             gpio_put(GPIO_LED_ACTIVE, heartbeat_led);
             heartbeat_led_next_us += DEBUG_HEARTBEAT_LED_INTERVAL;
         }

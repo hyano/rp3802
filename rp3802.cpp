@@ -205,24 +205,27 @@ static void rp3802_access_start(void)
 
 static inline bool rp3802_access_is_empty(void)
 {
+    const uint32_t wp = rp3802_access_buffer_wp();
+    const uint32_t rp = rp3802_access_buffer_rp;
+    const bool is_empty = (rp == wp);
+
 #ifdef DEBUG_PROFILE_ACCESS_BUFFER
+    if (!is_empty)
     {
-        const uint32_t wp = rp3802_access_buffer_wp();
-        const uint32_t rp = rp3802_access_buffer_rp;
         const uint32_t count = ((wp + RP3802_ACCESS_BUFFER_COUNT) - rp) % RP3802_ACCESS_BUFFER_COUNT;
         if (count > rp3802_access_buffer_count_max)
         {
             rp3802_access_buffer_count_max = count;
-        }
-        if (count > (RP3802_ACCESS_BUFFER_COUNT / 2))
-        {
-            // half of access buffer is consumed...
-            gpio_put(GPIO_LED_BOARD, 0);
+            if (count > (RP3802_ACCESS_BUFFER_COUNT / 2))
+            {
+                // half of access buffer is consumed...
+                gpio_put(GPIO_LED_BOARD, 0);
+            }
         }
     }
 #endif
 
-    return (rp3802_access_buffer_rp == rp3802_access_buffer_wp());
+    return is_empty;
 }
 
 static inline uint32_t rp3802_access_pop(void)

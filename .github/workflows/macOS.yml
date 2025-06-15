@@ -44,6 +44,7 @@ jobs:
           cd build_pico
           cmake .. -G "Unix Makefiles" -DPICO_SDK_PATH=../../pico-sdk -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico
           cmake --build .
+          cp -p rp3802.uf2 rp3802_pico.uf2
 
       - name: Build Project (pico2)
         working-directory: ${{github.workspace}}/rp3802
@@ -54,17 +55,12 @@ jobs:
           cd build_pico2
           cmake .. -G "Unix Makefiles" -DPICO_SDK_PATH=../../pico-sdk -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico2
           cmake --build .
+          cp -p rp3802.uf2 rp3802_pico2.uf2
 
-      - name: Upload Artifact (pico)
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rp3802_pico_uf2
+          name: rp3802_uf2
           path: |
-            ${{github.workspace}}/rp3802/build_pico/rp3802.uf2
-
-      - name: Upload Artifact (pico2)
-        uses: actions/upload-artifact@v4
-        with:
-          name: rp3802_pico2_uf2
-          path: |
-            ${{github.workspace}}/rp3802/build_pico2/rp3802.uf2
+            ${{github.workspace}}/rp3802/build_pico/rp3802_pico.uf2
+            ${{github.workspace}}/rp3802/build_pico2/rp3802_pico2.uf2

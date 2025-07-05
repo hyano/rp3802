@@ -144,6 +144,29 @@ static const uint8_t identify_data[] =
 };
 static uint32_t identify_ptr = 0;
 
+// MIDI initialize message
+static const uint8_t midi_init_msg[] =
+{
+    // ALL NOTE OFF
+    0xb0, 0x7b, 0x00,
+    0xb1, 0x7b, 0x00,
+    0xb2, 0x7b, 0x00,
+    0xb3, 0x7b, 0x00,
+    0xb4, 0x7b, 0x00,
+    0xb5, 0x7b, 0x00,
+    0xb6, 0x7b, 0x00,
+    0xb7, 0x7b, 0x00,
+    0xb8, 0x7b, 0x00,
+    0xb9, 0x7b, 0x00,
+    0xba, 0x7b, 0x00,
+    0xbb, 0x7b, 0x00,
+    0xbd, 0x7b, 0x00,
+    0xbe, 0x7b, 0x00,
+    0xbf, 0x7b, 0x00,
+    // END
+    0xff
+};
+
 // YM3802 bus access log (FIFO)
 #define RP3802_ACCESS_BUFFER_SHIFT (8)
 #define RP3802_ACCESS_BUFFER_COUNT (1 << RP3802_ACCESS_BUFFER_SHIFT)
@@ -714,6 +737,20 @@ static void ym3802_identify_next(void)
     ym3802_reg_update(0x96, identify_data[identify_ptr]);
 }
 
+static void ym3802_send_init_message(void)
+{
+    uint32_t irq_state = spin_lock_blocking(lock);
+
+    for (uint32_t idx = 0; midi_init_msg[idx] != 0xff; idx++)
+    {
+        while (!uart_is_writable(UART_ID));
+
+        uart_putc_raw(UART_ID, midi_init_msg[idx]);
+    }
+
+    spin_unlock(lock, irq_state);
+}
+
 static void ym3802_reset()
 {
     memset(reg, 0, sizeof(reg));
@@ -743,6 +780,9 @@ static void ym3802_reset()
 
     // update IRQ status
     ym3802_update_irq();
+
+    // send initialize message
+    ym3802_send_init_message();
 }
 
 static void ym3802_poweron()

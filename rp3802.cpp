@@ -104,6 +104,7 @@ static FIFO<uint32_t, 16> fifo_tx;
 static FIFO<uint32_t, 128> fifo_rx;
 static FIFO<uint32_t, 4> fifo_itx;
 static FIFO<uint32_t, 4> fifo_irx;
+static FIFO<uint32_t, 128> fifo_init_tx;
 
 // registers
 static uint8_t reg[16 * 0x10];
@@ -739,16 +740,11 @@ static void ym3802_identify_next(void)
 
 static void ym3802_send_init_message(void)
 {
-    uint32_t irq_state = spin_lock_blocking(lock);
-
+    fifo_init_tx.reset();
     for (uint32_t idx = 0; midi_init_msg[idx] != 0xff; idx++)
     {
-        while (!uart_is_writable(UART_ID));
-
-        uart_putc_raw(UART_ID, midi_init_msg[idx]);
+        fifo_init_tx.push(midi_init_msg[idx]);
     }
-
-    spin_unlock(lock, irq_state);
 }
 
 static void ym3802_reset()
@@ -1307,7 +1303,13 @@ int main(int argc, char *argv[])
     for (;;)
     {
         // UART TX
-        if (!fifo_itx.is_empty() && uart_is_writable(UART_ID))
+        if (!fifo_init_tx.is_empty() && uart_is_writable(UART_ID))
+        {
+            uint32_t data;
+            fifo_init_tx.pop(data);
+            uart_putc_raw(UART_ID, data & 0xff);
+        }
+        else if (!fifo_itx.is_empty() && uart_is_writable(UART_ID))
         {
             uint32_t data;
             fifo_itx.pop(data);

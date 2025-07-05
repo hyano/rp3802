@@ -26,6 +26,9 @@
 #include "csrdwr.pio.h"
 #include "led.pio.h"
 
+#define RP3802_VERSION_MAJOR        (1)
+#define RP3802_VERSION_MINOR        (1)
+
 //#define DEBUG_VERBOSE               (1)
 //#define DEBUG_ACCESS                (1)
 //#define DEBUG_BUS_LOG               (1)
@@ -131,6 +134,15 @@ static uint sm_led_rx;
 static PIO pio_led_irq;
 static uint sm_led_irq;
 #define LED_ON_TIME_IRQ_MS  (10)
+
+// IDENTIFY
+static const uint8_t identify_data[] =
+{
+    'R','P','3','8','0','2',
+    RP3802_VERSION_MAJOR,
+    RP3802_VERSION_MINOR,
+};
+static uint32_t identify_ptr = 0;
 
 // YM3802 bus access log (FIFO)
 #define RP3802_ACCESS_BUFFER_SHIFT (8)
@@ -690,6 +702,18 @@ static void ym3802_mc_push(uint32_t data)
     }
 }
 
+static void ym3802_identify_reset(void)
+{
+    identify_ptr = 0;
+    ym3802_reg_update(0x96, identify_data[identify_ptr]);
+}
+
+static void ym3802_identify_next(void)
+{
+    identify_ptr = (identify_ptr + 1) % sizeof(identify_data);
+    ym3802_reg_update(0x96, identify_data[identify_ptr]);
+}
+
 static void ym3802_reset()
 {
     memset(reg, 0, sizeof(reg));
@@ -714,7 +738,8 @@ static void ym3802_reset()
     // SRR:R: Recording counter current value
     ym3802_reg_update(0x74, 0x00);
     // EIR:R: External I/O input data
-    ym3802_reg_update(0x96, 0xff);
+    //ym3802_reg_update(0x96, 0xff);
+    ym3802_identify_reset();
 
     // update IRQ status
     ym3802_update_irq();
@@ -1001,6 +1026,10 @@ static void access_write(uint32_t bus)
          case 0x94:
             // EDR:W: External I/O direction
             ym3802_reg_update(regno, data);
+            if (data == 0)
+            {
+                ym3802_identify_reset();
+            }
             break;
         case 0x95:
             // EOR:W: External I/O output data
@@ -1070,6 +1099,7 @@ static void access_read(uint32_t bus)
             break;
         case 0x96:
             // EIR:R: External I/O input data
+            ym3802_identify_next();
             break;
         }
         break;

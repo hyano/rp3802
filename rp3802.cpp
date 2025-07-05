@@ -27,7 +27,7 @@
 #include "led.pio.h"
 
 #define RP3802_VERSION_MAJOR        (1)
-#define RP3802_VERSION_MINOR        (1)
+#define RP3802_VERSION_MINOR        (2)
 
 //#define DEBUG_VERBOSE               (1)
 //#define DEBUG_ACCESS                (1)

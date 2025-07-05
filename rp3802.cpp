@@ -106,6 +106,7 @@ static FIFO<uint32_t, 4> fifo_irx;
 static uint8_t reg[16 * 0x10];
 // for DMA/PIO read access
 static uint8_t reg_dma[16] __attribute__ ((aligned (16)));
+static uint8_t irq_status;
 
 // timer
 static uint64_t timer_gp_next_us = 0;
@@ -509,42 +510,64 @@ static inline void ym3802_update_tx_status(void)
     spin_unlock(lock, irq_state);
 }
 
-static inline void ym3802_set_irq(uint8_t irq)
+static inline void ym3802_update_irq_status(void)
 {
-    uint32_t irq_state = spin_lock_blocking(lock);
-    reg_dma[0x02] |= (irq & ym3802_reg_value(0x06));
-
     uint8_t status = reg_dma[0x02];
-    uint32_t irqno;
-
-    for (irqno = 0; irqno < 8; irqno++)
-    {
-        if (status & (1 << irqno))
-            break;
-    }
-    reg_dma[0x00] = (ym3802_reg_value(0x04) & 0xe0) | (irqno << 1);
 
     if (status != 0)
     {
+        uint32_t irqno;
+
+        for (irqno = 0; irqno < 8; irqno++)
+        {
+            if (status & (1 << irqno))
+                break;
+        }
+        reg_dma[0x00] = (ym3802_reg_value(0x04) & 0xe0) | (irqno << 1);
+
         // Assert IRQ line
         gpio_put(GPIO_IRQ, 0);
         led_on(pio_led_irq, sm_led_irq, LED_ON_TIME_IRQ_MS);
     }
+    else
+    {
+        reg_dma[0x00] = (ym3802_reg_value(0x04) & 0xe0) | 0x10;
+
+        // Clear IRQ line
+        gpio_put(GPIO_IRQ, 1);
+        // led_on(pio_led_irq, sm_led_irq, 0);
+    }
+}
+
+static inline void ym3802_set_irq(uint8_t irq)
+{
+    uint32_t irq_state = spin_lock_blocking(lock);
+
+    irq_status |= irq;
+    reg_dma[0x02] = irq_status & ym3802_reg_value(0x06);
+    ym3802_update_irq_status();
+
     spin_unlock(lock, irq_state);
 }
 
 static inline void ym3802_clr_irq(uint8_t irq)
 {
     uint32_t irq_state = spin_lock_blocking(lock);
-    reg_dma[0x02] &= ~irq;
 
-    uint8_t status = reg_dma[0x02];
-    if (status == 0)
-    {
-        // Clear IRQ line
-        gpio_put(GPIO_IRQ, 1);
-        //led_on(pio_led_irq, sm_led_irq, 0);
-    }
+    irq_status &= ~irq;
+    reg_dma[0x02] = irq_status & ym3802_reg_value(0x06);
+    ym3802_update_irq_status();
+
+    spin_unlock(lock, irq_state);
+}
+
+static inline void ym3802_update_irq(void)
+{
+    uint32_t irq_state = spin_lock_blocking(lock);
+
+    reg_dma[0x02] = irq_status & ym3802_reg_value(0x06);
+    ym3802_update_irq_status();
+
     spin_unlock(lock, irq_state);
 }
 
@@ -676,6 +699,7 @@ static void ym3802_reset()
     // RGR:RW: system control
     //reg_dma[0x01] = 0x00;
     // ISR:R: IRQ status
+    irq_status = 0x00;
     reg_dma[0x02] = 0x00;
     // DSR:R: FIFO-IRx data
     ym3802_reg_update(0x16, 0x00);
@@ -745,15 +769,17 @@ static void access_write(uint32_t bus)
             // IOR:W: IRQ vector offset request
             ym3802_reg_update(regno, data);
             // update IVR
-            reg_dma[0x00] = (reg_dma[0x00] & 0x1f) | (data & 0xe0);
+            ym3802_update_irq();
             break;
         case 0x05:
             // IMR:W: IRQ mode control
             ym3802_reg_update(regno, data);
+            ym3802_update_irq();
             break;
         case 0x06:
             // IER:W: IRQ enable request
             ym3802_reg_update(regno, data);
+            ym3802_update_irq();
             break;
 
         case 0x14:

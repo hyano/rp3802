@@ -715,6 +715,9 @@ static void ym3802_reset()
     ym3802_reg_update(0x74, 0x00);
     // EIR:R: External I/O input data
     ym3802_reg_update(0x96, 0xff);
+
+    // update IRQ status
+    ym3802_update_irq();
 }
 
 static void ym3802_poweron()

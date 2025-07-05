@@ -1303,35 +1303,38 @@ int main(int argc, char *argv[])
     for (;;)
     {
         // UART TX
-        if (!fifo_init_tx.is_empty() && uart_is_writable(UART_ID))
+        if (uart_is_writable(UART_ID))
         {
-            uint32_t data;
-            fifo_init_tx.pop(data);
-            uart_putc_raw(UART_ID, data & 0xff);
-        }
-        else if (!fifo_itx.is_empty() && uart_is_writable(UART_ID))
-        {
-            uint32_t data;
-            fifo_itx.pop(data);
-            uart_putc_raw(UART_ID, data & 0xff);
-            //led_on(pio_led_tx, sm_led_tx, LED_ON_TIME_TX_MS);
-
-            DEBUG_PRINTF("ITx: %02x\n", data);
-        }
-        else if (!fifo_tx.is_empty() && (ym3802_reg_value(0x55) & 0x01) && uart_is_writable(UART_ID))
-        {
-            uint32_t data;
-            fifo_tx.pop(data);
-            uart_putc_raw(UART_ID, data & 0xff);
-            ym3802_update_tx_status();
-            if (fifo_tx.is_empty())
+            if (!fifo_init_tx.is_empty())
             {
-                // IRQ-6: When the FIFO-Tx becomes empty through the data extraction by the transmitter.
-                ym3802_set_irq(1 << 6);
+                uint32_t data;
+                fifo_init_tx.pop(data);
+                uart_putc_raw(UART_ID, data);
             }
-            led_on(pio_led_tx, sm_led_tx, LED_ON_TIME_TX_MS);
+            else if (!fifo_itx.is_empty())
+            {
+                uint32_t data;
+                fifo_itx.pop(data);
+                uart_putc_raw(UART_ID, data);
+                //led_on(pio_led_tx, sm_led_tx, LED_ON_TIME_TX_MS);
 
-            DEBUG_PRINTF("Tx: %02x\n", data);
+                DEBUG_PRINTF("ITx: %02x\n", data);
+            }
+            else if (!fifo_tx.is_empty() && (ym3802_reg_value(0x55) & 0x01))
+            {
+                uint32_t data;
+                fifo_tx.pop(data);
+                uart_putc_raw(UART_ID, data);
+                ym3802_update_tx_status();
+                if (fifo_tx.is_empty())
+                {
+                    // IRQ-6: When the FIFO-Tx becomes empty through the data extraction by the transmitter.
+                    ym3802_set_irq(1 << 6);
+                }
+                led_on(pio_led_tx, sm_led_tx, LED_ON_TIME_TX_MS);
+
+                DEBUG_PRINTF("Tx: %02x\n", data);
+            }
         }
         // UART RX
         if (uart_is_readable(UART_ID) && (ym3802_reg_value(0x35) & 0x01))
